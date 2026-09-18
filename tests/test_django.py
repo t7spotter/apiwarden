@@ -129,3 +129,25 @@ def test_unknown_setting_is_rejected_loudly():
     with override_settings(APIWARDEN={"root": SAMPLE_ROOT, "colour": "blue"}):
         with pytest.raises(ValueError, match="colour"):
             load_config()
+
+
+def test_collectstatic_with_the_manifest_storage(tmp_path):
+    # Production setups (WhiteNoise, ManifestStaticFilesStorage) rewrite every
+    # url() and sourceMappingURL in our assets to a hashed name, and fail the
+    # whole collectstatic on a reference to a file we don't ship.
+    from django.core.management import call_command
+    from django.test import override_settings
+
+    with override_settings(
+        INSTALLED_APPS=["django.contrib.staticfiles", "apiwarden"],
+        STATIC_URL="/static/",
+        STATIC_ROOT=tmp_path,
+        STORAGES={
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.ManifestStaticFilesStorage",
+            },
+        },
+    ):
+        call_command("collectstatic", "--noinput", verbosity=0)
+
+    assert (tmp_path / "staticfiles.json").is_file()

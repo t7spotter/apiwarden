@@ -19,6 +19,13 @@ RAPIDOC_URL = f"https://cdn.jsdelivr.net/npm/rapidoc@{RAPIDOC_VERSION}/dist/rapi
 VENDOR_DIR = Path(__file__).resolve().parent.parent / "src" / "apiwarden" / "static" / "vendor"
 
 
+def strip_source_map(payload: bytes) -> bytes:
+    lines = payload.rstrip(b"\n").split(b"\n")
+    if lines[-1].startswith(b"//# sourceMappingURL="):
+        lines.pop()
+    return b"\n".join(lines) + b"\n"
+
+
 def main() -> int:
     VENDOR_DIR.mkdir(parents=True, exist_ok=True)
     target = VENDOR_DIR / "rapidoc.js"
@@ -30,6 +37,11 @@ def main() -> int:
     if len(payload) < 100_000:
         print(f"error: unexpectedly small download ({len(payload)} bytes)", file=sys.stderr)
         return 1
+
+    # The bundle ends by naming rapidoc-min.js.map, which we don't ship.
+    # Manifest storages (WhiteNoise, ManifestStaticFilesStorage) rewrite that
+    # reference at collectstatic and fail the host project's build on it.
+    payload = strip_source_map(payload)
 
     target.write_bytes(payload)
     (VENDOR_DIR / "VERSION").write_text(f"rapidoc@{RAPIDOC_VERSION}\n", encoding="utf-8")
