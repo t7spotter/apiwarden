@@ -30,6 +30,12 @@ spec, and it rescues the two things OpenAPI renderers normally drop — the
 top-level `x-*` blocks where teams record rate limits, TTLs and everything else
 that does not fit the schema, which become tables in the overview.
 
+Every operation has **Copy link** (straight to that operation) and **Copy as
+curl** under its method and path. The curl command is built from the spec, uses
+the server currently selected in the sidebar, and writes credentials as shell
+variables (`$TOKEN`, `$API_KEY`) so nothing secret lands in a chat or a bug
+report by accident. Shift-click to fill in the token you set in the sidebar.
+
 The sidebar also holds one Bearer token field, not one per spec. Set it once
 and it applies to try-it on every API — it lives in the browser's
 `localStorage`, never on the server, so it survives switching between APIs
@@ -54,6 +60,7 @@ the renderer rather than by reloading, so nobody loses their place.
 | `GET /openapi/<name>.json`, `.yaml` | The raw specs, byte-faithful |
 | `GET /display/<name>.json` | The renderer's copy: `x-*` folded into the overview |
 | `GET /operation/<id>.json` | One operation, `$ref`s inlined |
+| `GET /curl/<id>.txt` | A ready-to-run curl command for one operation (`?server=` picks the base URL) |
 | `GET /revision.json` | Content hashes — poll to tell whether anything changed |
 | `GET /changes.json` | The changelog, newest first; `?since=…` compares against one baseline |
 
@@ -77,6 +84,7 @@ apiwarden mcp ./api-docs
 
 ```
 apiwarden serve ./api-docs              # http://127.0.0.1:8080, reloads as you edit
+apiwarden mock ./api-docs               # http://127.0.0.1:8000, answers from the specs' examples
 apiwarden check ./api-docs              # lint: operationIds, summaries, unresolved $refs
 apiwarden build ./api-docs -o dist/     # self-contained static copy, for CI publishing
 apiwarden changes ./api-docs --since v1.4.0
@@ -94,6 +102,24 @@ apiwarden serve ./api-docs --port 8081  # the explicit form, still fine
 
 It watches the spec files and pushes a reload to open browsers, so editing a
 spec updates the page without a restart.
+
+### A mock API
+
+`apiwarden mock` serves every documented operation from the specs themselves, so
+a frontend can be built against an endpoint before the backend exists — and the
+mock cannot drift from the docs. Each operation answers with the example its spec
+gives, or one built from its schema, and the specs are re-read on every request.
+Add `localhost:8000` in the portal's server field and Try it talks to it.
+
+```
+curl http://localhost:8000/tasks/                    # the lowest documented 2xx
+curl 'http://localhost:8000/tasks/?__code=401'       # another documented response
+curl -H 'Prefer: code=401' http://localhost:8000/tasks/   # the same, as a header
+```
+
+It answers CORS preflights, honours the server's base path (`/v1`) but does not
+require it, and says what it does and does not document in its 404, 405 and 501
+replies. It does not validate requests or keep state.
 
 ## What changed
 
