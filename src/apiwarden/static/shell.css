@@ -181,7 +181,7 @@ h1, h2, h3, h4 { line-height: 1.3; }
 .portal-token-clear:hover { background: var(--surface-2); color: var(--text); }
 
 .portal-servers { flex: 1 1 140px; }
-.portal-server-add { display: flex; gap: 4px; }
+.portal-server-add { display: flex; align-items: stretch; gap: 4px; }
 .portal-server-add .portal-token { padding-inline-end: 9px; min-width: 0; }
 .portal-server-btn {
   border: 1px solid var(--border);
@@ -190,7 +190,9 @@ h1, h2, h3, h4 { line-height: 1.3; }
   color: var(--text);
   font: inherit;
   font-size: 12.5px;
-  padding: 0 10px;
+  padding: 0 12px;
+  flex: none;
+  white-space: nowrap;
   cursor: pointer;
 }
 .portal-server-btn:hover { border-color: var(--accent); }
@@ -205,15 +207,21 @@ h1, h2, h3, h4 { line-height: 1.3; }
   color: var(--muted);
 }
 .portal-server-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Same box as the token's clear button, so the two × line up down the sidebar. */
+.portal-server-list li { padding-inline: 9px 3px; min-height: 22px; }
 .portal-server-list button {
+  flex: none;
+  width: 20px;
+  height: 20px;
   border: none;
+  border-radius: 4px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
   font-size: 14px;
   line-height: 1;
 }
-.portal-server-list button:hover { color: var(--text); }
+.portal-server-list button:hover { background: var(--surface-2); color: var(--text); }
 .portal-server-error { margin: 4px 0 0; font-size: 11.5px; color: #d13438; }
 
 .topbar-links { display: flex; gap: 4px; margin-inline-start: auto; }
@@ -233,7 +241,9 @@ h1, h2, h3, h4 { line-height: 1.3; }
 .portal-nav .portal-title { font-size: 13px; }
 .portal-nav .portal-switch,
 .portal-nav .portal-search { max-width: none; width: 100%; }
-.portal-nav .portal-auth { max-width: none; }
+/* The topbar sizes these with flex-basis; in this column that would be a height. */
+.portal-nav .portal-auth,
+.portal-nav .portal-servers { flex: none; max-width: none; }
 .portal-nav .portal-results { inset-inline: 0; top: calc(100% - 26px); }
 .portal-nav .portal-links { display: flex; flex-wrap: wrap; gap: 8px; }
 .portal-nav .portal-links a { font-size: 11.5px; color: var(--muted); }
