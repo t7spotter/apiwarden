@@ -58,6 +58,10 @@ def main(argv: list[str] | None = None) -> int:
     mcp = sub.add_parser("mcp", help="run the MCP server on stdio")
     _common(mcp)
 
+    types = sub.add_parser("types", help="write TypeScript types for every spec")
+    _common(types)
+    types.add_argument("-o", "--output", default="types", help="directory to write <api>.ts files to (default: types)")
+
     snapshot = sub.add_parser("snapshot", help="write a baseline to diff against later")
     _common(snapshot)
     snapshot.add_argument("-o", "--output", default="apiwarden-snapshot.json")
@@ -90,6 +94,8 @@ def main(argv: list[str] | None = None) -> int:
         return _build(config, args)
     if args.command == "mcp":
         return _mcp(config)
+    if args.command == "types":
+        return _types(config, args)
     if args.command == "snapshot":
         return _snapshot(config, args)
     if args.command == "changes":
@@ -254,6 +260,28 @@ def _build(config: Config, args) -> int:
     written = build_static(config, Path(args.output))
     print(f"wrote {written} files to {args.output}")
     return 0
+
+
+def _types(config: Config, args) -> int:
+    from .typescript import typescript_for
+
+    registry = load_registry(config.root, config.sources or None)
+    broken = [name for name in registry.names() if registry.specs[name].error]
+    for name in broken:
+        print(f"  skipped {name}: {registry.specs[name].error}", file=sys.stderr)
+
+    names = [name for name in registry.names() if name not in broken]
+    if not names:
+        print(f"no usable specs under {config.root}", file=sys.stderr)
+        return 1
+
+    out = Path(args.output)
+    out.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        target = out / f"{name}.ts"
+        target.write_text(typescript_for(registry.specs[name]), encoding="utf-8")
+        print(f"  wrote {target}")
+    return 1 if broken else 0
 
 
 def _snapshot(config: Config, args) -> int:

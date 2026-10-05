@@ -20,6 +20,7 @@ from . import agent, diff, history, mcp_http, render
 from .config import Config
 from .curl import build_curl
 from .http import Request, Response, html, json_response, not_found, text
+from .typescript import typescript_for
 from .index import conventions, operation_detail, schema_detail, search_operations
 from .loader import Registry, reload_if_changed
 from .watcher import Watcher
@@ -137,6 +138,14 @@ def handle(request: Request, portal: Portal) -> Response:
         operation_id = path[len("operation/") : -len(".json")]
         detail = operation_detail(registry, _unquote(operation_id))
         return json_response(detail) if detail else not_found(f"no operation {operation_id!r}")
+
+    if path.startswith("types/") and path.endswith(".ts"):
+        name = _unquote(path[len("types/") : -len(".ts")])
+        spec = registry.get(name)
+        if spec is None or spec.error:
+            return not_found(f"no API {name!r}")
+        # text/plain, not a typescript type: browsers would read .ts as video.
+        return text(typescript_for(spec))
 
     if path.startswith("curl/") and path.endswith(".txt"):
         operation_id = _unquote(path[len("curl/") : -len(".txt")])

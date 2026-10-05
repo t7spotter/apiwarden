@@ -65,6 +65,7 @@ def llms_txt(registry: Registry, config: Config, origin: str = "") -> str:
         "## Machine endpoints",
         "",
         f"- [Operation index]({base}/index.json): every operation across every API, one compact JSON document.",
+        f"- TypeScript types: GET {base}/types/<api>.ts (every schema, plus <Operation>Params, <Operation>Request and <Operation>Response).",
         f"- [Revision]({base}/revision.json): content hashes; poll this to tell whether anything changed.",
         f"- [Full documentation]({base}/llms-full.txt): every operation and every convention as plain text.",
         f"- MCP endpoint: POST {base}/mcp (tools: list_apis, search_operations, get_operation, get_schema, get_conventions, get_spec).",

@@ -19,6 +19,7 @@ from .config import Config
 from .index import build_index, conventions, operation_detail, schema_detail
 from .loader import Registry, load_registry
 from .router import STATIC_DIR
+from .typescript import typescript_for
 
 
 def build_static(config: Config, output: Path) -> int:
@@ -52,6 +53,7 @@ def build_static(config: Config, output: Path) -> int:
             yaml.safe_dump(spec.data, allow_unicode=True, sort_keys=False),
         )
         written += _write(output / "conventions" / f"{name}.json", _json(conventions(registry, name)))
+        written += _write(output / "types" / f"{name}.ts", typescript_for(spec))
 
     written += _write_details(output, registry)
     written += _copy_static(output / "_static")

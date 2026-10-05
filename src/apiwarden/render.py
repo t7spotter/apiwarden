@@ -338,6 +338,7 @@ def _portal_nav(config: Config, registry: Registry, active: str) -> str:
   <a href="{_e(config.url("changes"))}">Changes{_NEWS_BADGE}</a>
   <a href="{_e(config.url("index.json"))}">index.json</a>
   <a href="{_e(config.url("llms.txt"))}">llms.txt</a>
+  <a href="{_e(config.url("types/" + active + ".ts"))}" title="TypeScript types for this API">types.ts</a>
 </div>
 <p class="portal-news" id="portal-news" hidden>
   <a href="{_e(config.url("changes"))}" id="news-text"></a>
