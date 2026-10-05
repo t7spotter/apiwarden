@@ -287,15 +287,27 @@ def _changes(request: Request, portal: Portal, as_json: bool) -> Response:
     if not since:
         portal.changelog.record(registry)
         entries = portal.changelog.entries()
+        # ?app= and ?op= narrow the history to one API or one operation: the
+        # page behind each operation's History button.
+        app = request.query.get("app", "").strip()
+        operation = request.query.get("op", "").strip()
+        scoped = bool(app or operation)
+        if scoped:
+            entries = history.filter_entries(entries, app, operation)
         if as_json:
-            return json_response(
-                {
-                    "revision": registry.revision,
-                    "tracking_since": portal.changelog.tracking_since,
-                    "entries": entries,
-                }
+            payload = {
+                "revision": registry.revision,
+                "tracking_since": portal.changelog.tracking_since,
+                "entries": entries,
+            }
+            if scoped:
+                payload["filter"] = {"app": app or None, "operation": operation or None}
+            return json_response(payload)
+        return html(
+            render.changelog_page(
+                config, registry, entries, portal.changelog.tracking_since, scope=(app, operation) if scoped else None
             )
-        return html(render.changelog_page(config, registry, entries, portal.changelog.tracking_since))
+        )
 
     changes: list[diff.Change] = []
     error = None

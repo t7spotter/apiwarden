@@ -551,3 +551,8 @@ body.nav-resizing rapi-doc { pointer-events: none; }
   cursor: pointer;
 }
 .since-example:hover { border-color: var(--accent); border-style: solid; }
+
+/* ---------- history links ---------- */
+
+.change-history { margin-inline-start: 8px; color: var(--muted); }
+.change-history:hover { color: var(--accent); }

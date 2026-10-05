@@ -441,10 +441,29 @@ _PROSE_KINDS = {
 _OPEN_ENTRIES = 3
 
 
-def changelog_page(config: Config, registry: Registry, entries: list[dict], since: float | None) -> str:
-    """Every recorded change to the contract, newest first."""
+def changelog_page(
+    config: Config,
+    registry: Registry,
+    entries: list[dict],
+    since: float | None,
+    scope: tuple[str, str] | None = None,
+) -> str:
+    """Every recorded change to the contract, newest first.
+
+    `scope` is (app, operation) for the history of one API or one operation;
+    either may be empty.
+    """
+    app, operation = scope or ("", "")
     if entries:
-        body = "".join(_entry(config, entry, open_=index < _OPEN_ENTRIES) for index, entry in enumerate(entries))
+        body = "".join(
+            _entry(config, entry, open_=index < _OPEN_ENTRIES, history_links=not scope)
+            for index, entry in enumerate(entries)
+        )
+    elif scope:
+        body = (
+            '<p class="empty">No recorded changes to this '
+            f'{"operation" if operation else "API"} since tracking began.</p>'
+        )
     else:
         body = (
             '<p class="empty">Nothing has changed yet. Edit a spec and the difference '
@@ -452,18 +471,31 @@ def changelog_page(config: Config, registry: Registry, entries: list[dict], sinc
         )
 
     tracking = f"Tracking since {_time(since, 'since-time')}." if since else ""
-    main = f"""
-<div class="page-head">
+    if scope:
+        what = f"<code>{_e(operation)}</code>" if operation else ""
+        link = f'<a href="{_e(config.url(app + "/"))}">{_e(app)}</a>' if app else ""
+        where = f" in {link}" if what and link else link
+        head = f"""
+  <h1>History of {what}{where}</h1>
+  <p>Every recorded change to {"this operation" if operation else "this API"}, newest first. {tracking}
+     <a href="{_e(config.url("changes"))}">Back to the full history</a></p>"""
+        tail = ""
+    else:
+        head = f"""
   <h1>Changes</h1>
-  <p>Every change to the API contract, newest first, recorded automatically whenever a spec changes. {tracking}</p>
+  <p>Every change to the API contract, newest first, recorded automatically whenever a spec changes. {tracking}</p>"""
+        tail = _since_form("", open_=False)
+
+    main = f"""
+<div class="page-head">{head}
 </div>
-<div class="changelog">{body}</div>
-{_since_form("", open_=False)}
+<div class="changelog"{" data-filtered" if scope else ""}>{body}</div>
+{tail}
 """
     return page(config, registry, f"Changes · {config.title}", main, active="__changes__")
 
 
-def _entry(config: Config, entry: dict, open_: bool) -> str:
+def _entry(config: Config, entry: dict, open_: bool, history_links: bool = True) -> str:
     from .diff import Change
 
     changes = [Change(**change) for change in entry["changes"]]
@@ -480,7 +512,7 @@ def _entry(config: Config, entry: dict, open_: bool) -> str:
     return (
         f'<details class="entry entry-{worst}" data-at="{entry["at"]}"{" open" if open_ else ""}>'
         f'<summary class="entry-head">{_time(entry["at"])}{source}{_pills(entry["counts"])}</summary>'
-        f'<div class="entry-body">{_change_groups(config, changes)}</div>'
+        f'<div class="entry-body">{_change_groups(config, changes, history_links)}</div>'
         "</details>"
     )
 
@@ -569,7 +601,7 @@ def _detail(change) -> str:
     return _e(change.detail) if change.kind in _PROSE_KINDS else f"<code>{_e(change.detail)}</code>"
 
 
-def _change_groups(config: Config, changes) -> str:
+def _change_groups(config: Config, changes, history_links: bool = True) -> str:
     grouped: dict[tuple[str, str], list] = {}
     for change in changes:
         grouped.setdefault((change.app, change.operation), []).append(change)
@@ -581,6 +613,9 @@ def _change_groups(config: Config, changes) -> str:
         target = app + "/" + (f"?op={quote(operation)}" if operation else "")
         heading = _e(operation) if operation else "whole API"
         link = f'<a href="{_e(config.url(target))}">{_e(app)}</a>'
+        if operation and history_links:
+            query = f"?app={quote(app)}&op={quote(operation)}"
+            link += f' <a class="change-history" href="{_e(config.url("changes") + query)}">history</a>'
 
         rows = "".join(
             f'<tr><td><span class="tag tag-{item.level}">{_LEVEL_LABEL[item.level]}</span></td>'

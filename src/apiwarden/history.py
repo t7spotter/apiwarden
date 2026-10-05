@@ -207,3 +207,31 @@ def _entry(before: dict, after: dict, changes: list[diff.Change], at: float) -> 
         "apis": sorted({change.app for change in changes}),
         "changes": diff.as_dicts(changes),
     }
+
+
+def filter_entries(entries: list[dict[str, Any]], app: str = "", operation: str = "") -> list[dict[str, Any]]:
+    """Only the changes to one API, or to one operation of it, newest first.
+
+    Entries that touched nothing of interest drop out; the rest keep only the
+    matching changes, with their counts and API list recomputed, so the page can
+    render them exactly as it renders the full history.
+    """
+    kept: list[dict[str, Any]] = []
+    for entry in entries:
+        matching = [
+            change
+            for change in entry["changes"]
+            if (not app or change["app"] == app) and (not operation or change["operation"] == operation)
+        ]
+        if not matching:
+            continue
+        changes = [diff.Change(**change) for change in matching]
+        kept.append(
+            {
+                **entry,
+                "counts": diff.summarize(changes),
+                "apis": sorted({change.app for change in changes}),
+                "changes": matching,
+            }
+        )
+    return kept

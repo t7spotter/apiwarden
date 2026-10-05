@@ -176,6 +176,8 @@
   var LEVELS = ["breaking", "additive", "info"];
   var newsSheet = null;
   var newestAt = 0;
+  // How many changelog entries touched each operation: {"tasks|GET /tasks/": 2}
+  var historyCounts = {};
 
   function readSeen() {
     try {
@@ -346,6 +348,18 @@
         if (!data || !data.entries) return;
         newestAt = data.entries.length ? data.entries[0].at : 0;
 
+        historyCounts = {};
+        data.entries.forEach(function (entry) {
+          var touched = {};
+          (entry.changes || []).forEach(function (change) {
+            if (change.operation) touched[change.app + "|" + change.operation] = true;
+          });
+          Object.keys(touched).forEach(function (key) {
+            historyCounts[key] = (historyCounts[key] || 0) + 1;
+          });
+        });
+        updateHistoryLabels();
+
         var seen = readSeen();
         if (seen === null) {
           // First visit: everything up to now is background, not news.
@@ -353,11 +367,16 @@
           writeSeen(seen);
         }
 
-        if (document.querySelector(".changelog")) {
+        var changelog = document.querySelector(".changelog");
+        if (changelog) {
           highlightEntries(seen);
-          writeSeen(Math.max(seen, newestAt));
-          clearNews();
-          return;
+          // A page narrowed to one operation shows only part of the history,
+          // so looking at it must not clear what has not been looked at.
+          if (!changelog.hasAttribute("data-filtered")) {
+            writeSeen(Math.max(seen, newestAt));
+            clearNews();
+            return;
+          }
         }
         showNews(
           data.entries.filter(function (entry) {
@@ -848,14 +867,38 @@
         '<button type="button" class="apiwarden-op-btn" data-action="curl" ' +
         'title="Copy a curl command for this operation, for the selected server. Shift-click to include your token.">' +
         "Copy as curl</button>";
+      var operation = operationFor(body.id);
+      if (operation) {
+        var key = operation.method.toUpperCase() + " " + operation.path;
+        var history = document.createElement("a");
+        history.className = "apiwarden-op-btn";
+        history.setAttribute("data-action", "history");
+        history.setAttribute("data-op", key);
+        history.title = "What changed on this operation, and when";
+        history.href = url("changes") + "?app=" + encodeURIComponent(config.app) + "&op=" + encodeURIComponent(key);
+        history.textContent = "History";
+        bar.appendChild(history);
+      }
       var line = body.querySelector(":scope > .mono-font");
       body.insertBefore(bar, line ? line.nextSibling : body.firstChild);
+    });
+    updateHistoryLabels();
+  }
+
+  // "History (3)" when the changelog has entries for that operation.
+  function updateHistoryLabels() {
+    var root = docs && docs.shadowRoot;
+    if (!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll('.apiwarden-op-btn[data-action="history"]'), function (link) {
+      var count = historyCounts[config.app + "|" + link.getAttribute("data-op")] || 0;
+      link.textContent = count ? "History (" + count + ")" : "History";
     });
   }
 
   function onOperationTool(event) {
     var button = event.target.closest && event.target.closest(".apiwarden-op-btn");
-    if (!button) return;
+    // History is a plain link; let the browser follow it.
+    if (!button || button.getAttribute("data-action") === "history") return;
     var body = button.closest(".expanded-endpoint-body");
     var operation = body && operationFor(body.id);
     if (!operation) return;

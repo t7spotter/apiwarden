@@ -424,3 +424,38 @@ def test_operation_tools_copy_a_link_and_a_curl_command(page, live):
     tools("curl").click()
     page.wait_for_timeout(800)
     assert "http://localhost:9777" in clipboard()
+
+
+def test_history_link_on_an_operation_shows_only_that_operations_changes(page, live):
+    import yaml
+
+    base, root, portal = live
+    app = _first_app(portal)
+    url, method, _operation, _shared = next(portal.registry.specs[app].operations())
+    key = f"{method.upper()} {url}"
+
+    page.goto(f"{base}/{app}/", wait_until="load")  # first visit: nothing is new yet
+    page.wait_for_timeout(2000)
+
+    spec = next(root.glob(f"apps/{app}/openapi.y*ml"))
+    data = yaml.safe_load(spec.read_text(encoding="utf-8"))
+    data["paths"][url][method]["parameters"] = [
+        {"name": "history_probe", "in": "query", "required": True, "schema": {"type": "integer"}}
+    ]
+    spec.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    page.wait_for_timeout(2500)
+
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2500)
+    link = page.locator(f"rapi-doc .apiwarden-op-btn[data-action='history'][data-op='{key}']")
+    assert link.inner_text().startswith("History (")  # the changelog has entries for it
+
+    link.click()
+    page.wait_for_url("**/changes?**")
+    page.wait_for_timeout(800)
+    assert page.locator(".changelog[data-filtered] .entry").count() >= 1
+    assert "history_probe" in page.inner_text(".changelog")
+    assert "History of" in page.inner_text("h1")
+
+    # Looking at one operation's history must not clear the "new" markers.
+    assert page.is_visible(".topbar .news-count")

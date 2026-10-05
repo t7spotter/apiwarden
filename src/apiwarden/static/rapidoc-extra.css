@@ -45,6 +45,9 @@
    Added by shell.js; the colours come from RapiDoc's own variables. */
 .apiwarden-op-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
 .apiwarden-op-btn {
+  display: inline-block;
+  text-decoration: none;
+  line-height: normal;
   font: inherit;
   font-size: 12px;
   padding: 3px 10px;
