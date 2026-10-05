@@ -230,3 +230,34 @@ def test_right_to_left_text_lays_itself_out(page, live):
     # rapidoc-extra.css is injected into the shadow root via the css-file
     # attribute; if that stopped working, none of these would be plaintext.
     assert counts["plaintext"] == counts["total"]
+
+
+def test_added_server_reaches_the_try_it_dropdown(page, live):
+    base, _, portal = live
+    app = portal.registry.names()[0]
+
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2000)
+
+    # A bare localhost address gets http://, and becomes the selected server.
+    page.fill("#server-input", "localhost:9000")
+    page.press("#server-input", "Enter")
+    page.wait_for_timeout(1500)
+    servers = page.evaluate("document.getElementById('docs').resolvedSpec.servers.map(s => s.url)")
+    assert servers[0] == "http://localhost:9000", servers
+    selected = page.evaluate("document.getElementById('docs').selectedServer.url")
+    assert selected == "http://localhost:9000"
+
+    # It persists across a real navigation, and can be removed again.
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    assert page.inner_text("#server-list") .strip().startswith("http://localhost:9000")
+    page.click("#server-list button")
+    page.wait_for_timeout(1500)
+    servers = page.evaluate("document.getElementById('docs').resolvedSpec.servers.map(s => s.url)")
+    assert "http://localhost:9000" not in servers
+
+    # Garbage is refused rather than stored.
+    page.fill("#server-input", "ftp://nope")
+    page.press("#server-input", "Enter")
+    assert page.is_visible("#server-error")

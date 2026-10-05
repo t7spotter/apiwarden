@@ -39,6 +39,9 @@ def test_api_page_hosts_the_renderer_with_portal_nav(portal, registry):
     # One bearer-token field, set once and applied to every API's Try it panel.
     assert 'id="auth-token"' in markup
     assert 'id="auth-token-clear"' in markup
+    # Extra Try it servers (localhost, staging) can be added in the browser.
+    assert 'id="server-form"' in markup
+    assert 'id="server-input"' in markup
 
 
 def test_landing_page_has_the_token_control_too(portal, registry):
