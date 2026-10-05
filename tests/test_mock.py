@@ -8,6 +8,7 @@ import urllib.request
 import pytest
 
 from apiwarden.cli import main
+from apiwarden.curl import build_curl
 from apiwarden.examples import example_for, media_example
 from apiwarden.loader import load_registry
 from apiwarden.mock import build_routes, make_server, respond
@@ -168,3 +169,60 @@ def test_mock_serves_over_http_and_rereads_the_specs(spec_copy):
 def test_mock_command_refuses_an_empty_directory(tmp_path, capsys):
     assert main(["mock", str(tmp_path), "8799"]) == 1
     assert "no operations" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------- curl
+
+
+def test_curl_for_a_bodyless_operation(registry):
+    command = build_curl(registry, "listTasks", "http://localhost:9000/")
+    assert command.startswith("curl 'http://localhost:9000/tasks/'")  # no -X for GET, no double slash
+    assert "-H 'X-Client-Version: 1.4.0'" in command  # the spec's own example
+    # The token is a variable the shell expands, never a literal.
+    assert '-H "Authorization: Bearer $TOKEN"' in command
+
+
+def test_curl_for_a_write_has_method_headers_and_json_body(registry):
+    command = build_curl(registry, "createTask")
+    assert command.startswith("curl -X POST 'http://localhost:8000/tasks/'")
+    assert "-H 'Content-Type: application/json'" in command
+    body = command.split("-d '", 1)[1].rsplit("'", 1)[0]
+    assert "title" in json.loads(body)
+
+
+def test_curl_fills_path_parameters_and_skips_auth_when_public(registry):
+    command = build_curl(registry, "getUser")
+    assert "/users/ada/" in command and "{" not in command
+    assert "Authorization" not in command
+
+
+def test_curl_falls_back_to_a_variable_without_any_server(spec_copy):
+    import yaml
+
+    path = next(spec_copy.glob("apps/users/openapi.y*ml"))
+    data = yaml.safe_load(path.read_text())
+    data.pop("servers", None)
+    path.write_text(yaml.safe_dump(data, sort_keys=False))
+
+    command = build_curl(load_registry(spec_copy), "getUser")
+    assert command.startswith('curl "$BASE_URL/users/ada/"')
+
+
+def test_curl_quotes_the_server_it_is_given(registry):
+    command = build_curl(registry, "getUser", "http://x.test/it's")
+    assert "'\\''" in command
+
+
+def test_curl_unknown_operation_is_none(registry):
+    assert build_curl(registry, "doesNotExist") is None
+
+
+def test_curl_is_served_as_text(portal, registry):
+    from apiwarden.http import Request
+    from apiwarden.router import handle
+
+    response = handle(Request("GET", "/curl/listTasks.txt", query={"server": "http://localhost:9000"}), portal)
+    assert response.status == 200
+    assert response.headers["Content-Type"].startswith("text/plain")
+    assert b"http://localhost:9000/tasks/" in response.body
+    assert handle(Request("GET", "/curl/nope.txt"), portal).status == 404

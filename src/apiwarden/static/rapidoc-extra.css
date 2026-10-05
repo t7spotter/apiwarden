@@ -40,3 +40,19 @@
    root). Until then the renderer's own width applies. The nav is display:none
    below its breakpoint, so this cannot force it open on a narrow screen. */
 :host([data-nav-resized]) .nav-bar { width: var(--apiwarden-nav-width) !important; }
+
+/* "Copy link" / "Copy as curl" under each operation's method-and-path line.
+   Added by shell.js; the colours come from RapiDoc's own variables. */
+.apiwarden-op-tools { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.apiwarden-op-btn {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--fg);
+  cursor: pointer;
+}
+.apiwarden-op-btn:hover { border-color: var(--primary-color); color: var(--primary-color); }
+.apiwarden-op-btn:focus-visible { outline: 2px solid var(--primary-color); outline-offset: 2px; }

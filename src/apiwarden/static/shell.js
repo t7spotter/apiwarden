@@ -765,6 +765,133 @@
 
   loadIntoRenderer(config.spec);
 
+  /* ---------- "Copy link" and "Copy as curl" on every operation ----------
+
+     RapiDoc has no slot for per-operation controls, so the buttons are added
+     into its shadow root next to each operation's method-and-path line. It
+     re-renders freely, so an observer puts them back whenever they go missing.
+     The curl command is built by the server from the spec (see curl.py); the
+     only part decided here is which server is selected, and — on Shift-click —
+     the reader's own token, which never leaves the browser. */
+
+  function operationFor(elementId) {
+    var tags = (docs.resolvedSpec && docs.resolvedSpec.tags) || [];
+    for (var i = 0; i < tags.length; i++) {
+      var paths = tags[i].paths || [];
+      for (var j = 0; j < paths.length; j++) {
+        if (paths[j].elementId === elementId) return paths[j];
+      }
+    }
+    return null;
+  }
+
+  function copyText(value) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(value);
+    }
+    // Plain http on a LAN address has no clipboard API; fall back to a selection.
+    return new Promise(function (resolve, reject) {
+      var area = document.createElement("textarea");
+      area.value = value;
+      area.style.cssText = "position:fixed;inset-block-start:0;opacity:0";
+      document.body.appendChild(area);
+      area.select();
+      var ok = false;
+      try {
+        ok = document.execCommand("copy");
+      } catch (e) {
+        ok = false;
+      }
+      area.remove();
+      ok ? resolve() : reject(new Error("copy blocked"));
+    });
+  }
+
+  function shellEscapeInDoubleQuotes(value) {
+    return value.replace(/[\\"$`]/g, "\\$&");
+  }
+
+  function buildCurl(operation, withToken) {
+    var server = docs.selectedServer && (docs.selectedServer.computedUrl || docs.selectedServer.url);
+    var id = operation.operationId || operation.method.toUpperCase() + " " + operation.path;
+    var endpoint = url("curl/" + encodeURIComponent(id) + ".txt") + (server ? "?server=" + encodeURIComponent(server) : "");
+    return fetch(endpoint, { credentials: "same-origin" })
+      .then(function (response) {
+        if (!response.ok) throw new Error(String(response.status));
+        return response.text();
+      })
+      .then(function (command) {
+        var token = withToken ? readToken() : "";
+        return token ? command.split("$TOKEN").join(shellEscapeInDoubleQuotes(token)) : command;
+      });
+  }
+
+  function flashButton(button, label) {
+    if (!button.dataset.label) button.dataset.label = button.textContent;
+    button.textContent = label;
+    clearTimeout(button._reset);
+    button._reset = setTimeout(function () {
+      button.textContent = button.dataset.label;
+    }, 1600);
+  }
+
+  function addOperationTools() {
+    var root = docs.shadowRoot;
+    if (!root) return;
+    Array.prototype.forEach.call(root.querySelectorAll(".expanded-endpoint-body[id]"), function (body) {
+      if (body.querySelector(":scope > .apiwarden-op-tools")) return;
+      var bar = document.createElement("div");
+      bar.className = "apiwarden-op-tools";
+      bar.innerHTML =
+        '<button type="button" class="apiwarden-op-btn" data-action="link" ' +
+        'title="Copy a link straight to this operation">Copy link</button>' +
+        '<button type="button" class="apiwarden-op-btn" data-action="curl" ' +
+        'title="Copy a curl command for this operation, for the selected server. Shift-click to include your token.">' +
+        "Copy as curl</button>";
+      var line = body.querySelector(":scope > .mono-font");
+      body.insertBefore(bar, line ? line.nextSibling : body.firstChild);
+    });
+  }
+
+  function onOperationTool(event) {
+    var button = event.target.closest && event.target.closest(".apiwarden-op-btn");
+    if (!button) return;
+    var body = button.closest(".expanded-endpoint-body");
+    var operation = body && operationFor(body.id);
+    if (!operation) return;
+
+    var done = function () {
+      flashButton(button, "Copied \u2713");
+    };
+    var failed = function () {
+      flashButton(button, "Copy failed");
+    };
+
+    if (button.getAttribute("data-action") === "link") {
+      var target =
+        location.origin + url(config.app + "/") + "?op=" + encodeURIComponent(operation.method.toUpperCase() + " " + operation.path);
+      copyText(target).then(done, failed);
+    } else {
+      buildCurl(operation, event.shiftKey).then(copyText).then(done, failed);
+    }
+  }
+
+  customElements.whenDefined("rapi-doc").then(function () {
+    var root = docs.shadowRoot;
+    if (!root) return;
+    root.addEventListener("click", onOperationTool);
+    var scheduled = false;
+    new MutationObserver(function () {
+      if (scheduled) return;
+      scheduled = true;
+      requestAnimationFrame(function () {
+        scheduled = false;
+        addOperationTools();
+      });
+    }).observe(root, { childList: true, subtree: true });
+    addOperationTools();
+  });
+
   /* ---------- live updates, without losing the reader's place ---------- */
 
   if (config.watch && typeof EventSource !== "undefined") {

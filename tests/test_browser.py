@@ -379,3 +379,48 @@ def test_since_examples_fill_the_baseline_field(page, live):
     page.click(".since-details > summary")
     page.click(".since-example[data-example='HEAD~5']")
     assert page.input_value("#since") == "HEAD~5"
+
+
+def test_operation_tools_copy_a_link_and_a_curl_command(page, live):
+    base, _, portal = live
+    app = _first_app(portal)
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base)
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2500)
+
+    def clipboard():
+        return page.evaluate("navigator.clipboard.readText()")
+
+    def tools(action):
+        # The buttons live in RapiDoc's shadow root; Playwright pierces it.
+        return page.locator(f"rapi-doc .apiwarden-op-btn[data-action='{action}']").first
+
+    assert page.locator("rapi-doc .apiwarden-op-tools").count() >= 1
+
+    tools("link").click()
+    page.wait_for_timeout(300)
+    assert f"/{app}/?op=" in clipboard()
+
+    tools("curl").click()
+    page.wait_for_timeout(800)
+    assert clipboard().startswith("curl ")
+    assert "Bearer $TOKEN" in clipboard()  # the sample's first operation needs a token
+
+    # Shift-click puts the reader's own token in; a plain click never does.
+    page.fill("#auth-token", "tok-123")
+    page.wait_for_timeout(400)
+    tools("curl").click()
+    page.wait_for_timeout(800)
+    assert "tok-123" not in clipboard()
+    tools("curl").click(modifiers=["Shift"])
+    page.wait_for_timeout(800)
+    command = clipboard()
+    assert 'Bearer tok-123"' in command and "$TOKEN" not in command
+
+    # The command follows the selected server — one added in the sidebar.
+    page.fill("#server-input", "localhost:9777")
+    page.press("#server-input", "Enter")
+    page.wait_for_timeout(1500)
+    tools("curl").click()
+    page.wait_for_timeout(800)
+    assert "http://localhost:9777" in clipboard()
