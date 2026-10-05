@@ -34,3 +34,9 @@
   border-bottom: 1px solid var(--nav-hover-bg-color);
   margin-bottom: 4px;
 }
+
+/* Width of the left nav, once the reader has dragged the splitter (shell.js
+   sets the attribute and a custom property, which inherits into this shadow
+   root). Until then the renderer's own width applies. The nav is display:none
+   below its breakpoint, so this cannot force it open on a narrow screen. */
+:host([data-nav-resized]) .nav-bar { width: var(--apiwarden-nav-width) !important; }

@@ -276,6 +276,133 @@
     setTimeout(pendingOperation, 60);
   });
 
+  /* ---------- draggable edge on RapiDoc's left nav ----------
+
+     RapiDoc fixes the nav's width in its own stylesheet. A thin handle is laid
+     over the nav's right edge in this document; dragging it sets a custom
+     property on <rapi-doc>, which rapidoc-extra.css applies to the nav. The
+     width is remembered per base path. Double-click (or Home) resets it. */
+
+  var NAV_KEY = "apiwarden:navwidth:" + base;
+  var NAV_MIN = 220;
+  var splitter = document.createElement("div");
+  splitter.className = "nav-splitter";
+  splitter.setAttribute("role", "separator");
+  splitter.setAttribute("aria-orientation", "vertical");
+  splitter.setAttribute("aria-label", "Resize the navigation (arrow keys, Home to reset)");
+  splitter.tabIndex = 0;
+  document.body.appendChild(splitter);
+
+  function navBar() {
+    return docs.shadowRoot && docs.shadowRoot.querySelector(".nav-bar");
+  }
+
+  function navMax() {
+    return Math.max(NAV_MIN, Math.round(window.innerWidth * 0.6));
+  }
+
+  function clampNav(width) {
+    return Math.min(navMax(), Math.max(NAV_MIN, Math.round(width)));
+  }
+
+  function setNavWidth(width) {
+    docs.style.setProperty("--apiwarden-nav-width", width + "px");
+    docs.setAttribute("data-nav-resized", "");
+  }
+
+  function placeSplitter() {
+    var nav = navBar();
+    var rect = nav && nav.getBoundingClientRect();
+    // RapiDoc hides its nav on narrow screens; there is nothing to drag then.
+    if (!rect || rect.width < 10 || getComputedStyle(nav).display === "none") {
+      splitter.style.display = "none";
+      return;
+    }
+    splitter.style.display = "";
+    splitter.style.left = rect.right + "px";
+    splitter.setAttribute("aria-valuenow", String(Math.round(rect.width)));
+  }
+
+  function saveNavWidth(width) {
+    try {
+      if (width) localStorage.setItem(NAV_KEY, String(width));
+      else localStorage.removeItem(NAV_KEY);
+    } catch (e) {
+      // Resizing still works for this page load.
+    }
+  }
+
+  function resetNavWidth() {
+    docs.style.removeProperty("--apiwarden-nav-width");
+    docs.removeAttribute("data-nav-resized");
+    saveNavWidth(0);
+    requestAnimationFrame(placeSplitter);
+  }
+
+  splitter.addEventListener("pointerdown", function (event) {
+    var nav = navBar();
+    if (!nav || event.button !== 0) return;
+    event.preventDefault();
+    var startX = event.clientX;
+    var startWidth = nav.getBoundingClientRect().width;
+    splitter.setPointerCapture(event.pointerId);
+    splitter.classList.add("dragging");
+    document.body.classList.add("nav-resizing");
+
+    function move(e) {
+      setNavWidth(clampNav(startWidth + (e.clientX - startX)));
+      placeSplitter();
+    }
+
+    function stop() {
+      splitter.removeEventListener("pointermove", move);
+      splitter.removeEventListener("pointerup", stop);
+      splitter.removeEventListener("pointercancel", stop);
+      splitter.classList.remove("dragging");
+      document.body.classList.remove("nav-resizing");
+      var rect = nav.getBoundingClientRect();
+      saveNavWidth(Math.round(rect.width));
+    }
+
+    splitter.addEventListener("pointermove", move);
+    splitter.addEventListener("pointerup", stop);
+    splitter.addEventListener("pointercancel", stop);
+  });
+
+  splitter.addEventListener("dblclick", resetNavWidth);
+
+  splitter.addEventListener("keydown", function (event) {
+    var nav = navBar();
+    if (!nav) return;
+    var step = event.shiftKey ? 40 : 10;
+    var width = nav.getBoundingClientRect().width;
+    if (event.key === "ArrowLeft") width -= step;
+    else if (event.key === "ArrowRight") width += step;
+    else if (event.key === "Home") return resetNavWidth();
+    else return;
+    event.preventDefault();
+    width = clampNav(width);
+    setNavWidth(width);
+    saveNavWidth(width);
+    placeSplitter();
+  });
+
+  var storedNav = 0;
+  try {
+    storedNav = parseInt(localStorage.getItem(NAV_KEY) || "0", 10) || 0;
+  } catch (e) {
+    storedNav = 0;
+  }
+  if (storedNav) setNavWidth(clampNav(storedNav));
+
+  window.addEventListener("resize", function () {
+    requestAnimationFrame(placeSplitter);
+  });
+  docs.addEventListener("spec-loaded", function () {
+    // The nav is built after the spec; give it a frame to take its width.
+    setTimeout(placeSplitter, 60);
+  });
+
   /* ---------- extra servers for Try it (localhost, staging, …) ----------
 
      Held in localStorage, namespaced like the token. They are merged into the
