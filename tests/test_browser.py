@@ -54,7 +54,9 @@ def live(tmp_path_factory):
     shutil.copytree(Path(__file__).resolve().parent / "fixtures" / "sample-api", root)
 
     port = _free_port()
-    portal = build_portal(Config(root=root, title="Browser test", watch=True))
+    portal = build_portal(
+        Config(root=root, title="Browser test", watch=True, history=str(root.parent / "changes.json"))
+    )
     threading.Thread(target=serve, args=(portal, "127.0.0.1", port), daemon=True).start()
     time.sleep(0.5)
 
@@ -313,3 +315,60 @@ def test_sidebar_controls_line_up(page, live):
     # Both × buttons share a right edge.
     assert box("#server-list button")[1] == pytest.approx(clear[1], abs=2)
     page.evaluate("localStorage.clear()")
+
+
+def _add_operation(root: Path, app: str, path: str) -> None:
+    import yaml
+
+    spec = next(root.glob(f"apps/{app}/openapi.y*ml"))
+    data = yaml.safe_load(spec.read_text(encoding="utf-8"))
+    data["paths"][path] = {
+        "get": {"summary": "Added by a test.", "operationId": "addedByTest", "responses": {"200": {"description": "ok"}}}
+    }
+    spec.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
+def test_changes_since_the_last_visit_are_marked(page, live):
+    base, root, portal = live
+    app = _first_app(portal)
+
+    # First visit: whatever is in the log is background, not news.
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2500)
+    assert page.is_hidden(".portal-nav .news-count")
+    assert page.is_hidden("#portal-news")
+
+    _add_operation(root, app, "/added-by-test/")
+    page.wait_for_timeout(2500)  # the watcher notices and the changelog records it
+
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2500)
+    assert page.inner_text(".portal-nav .news-count") == "1"
+    assert "since your last visit" in page.inner_text("#news-text")
+    assert "1 new" in page.inner_text("#api-switch option:checked")
+
+    # The changed operation gets a marker in RapiDoc's own nav.
+    marked = page.evaluate("""() => {
+      const root = document.getElementById('docs').shadowRoot;
+      return root.adoptedStyleSheets.some(sheet => [...sheet.cssRules].some(
+        rule => rule.cssText.includes('data-content-id="get-/added-by-test/"')));
+    }""")
+    assert marked
+
+    # "Mark as seen" clears it, and stays cleared on the next page.
+    page.click("#news-seen")
+    assert page.is_hidden("#portal-news")
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    assert page.is_hidden(".portal-nav .news-count")
+
+    # Opening the Changes page highlights what is new there, then clears it.
+    _add_operation(root, app, "/added-by-test-too/")
+    page.wait_for_timeout(2500)
+    page.goto(f"{base}/changes", wait_until="load")
+    page.wait_for_timeout(1000)
+    assert page.locator(".entry-new").count() >= 1
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    assert page.is_hidden(".portal-nav .news-count")
+

@@ -123,6 +123,12 @@ directory is never written to. Set `history` to a path on persistent storage to
 keep it across container rebuilds. On the very first run, if the specs are in a
 git checkout, the recent commits that touched them are read once to seed it.
 
+A reader also sees what is new *to them*: each page compares the changelog with
+the last point that browser has seen (kept in `localStorage`, like the token) and
+badges the Changes link, the API switcher, the landing cards, and the changed
+operations in the nav. Opening Changes, or "Mark as seen", clears them. The first
+visit shows nothing as new.
+
 To compare against one specific version instead — a release tag, a commit, or a
 file written earlier with `apiwarden snapshot` — pass `--since` (or `?since=` on
 the page). `--fail-on-breaking` exits non-zero, so CI can gate on it:

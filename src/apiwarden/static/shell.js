@@ -164,6 +164,222 @@
     });
   }
 
+  /* ---------- what changed since the reader's last visit ----------
+
+     The changelog already records every contract change with a timestamp. The
+     only thing kept per reader is the newest timestamp they have seen, in
+     localStorage like the token — so there is nothing to configure and the
+     server stays stateless. The first visit sees nothing as new; opening the
+     Changes page, or "Mark as seen", moves the line forward. */
+
+  var SEEN_KEY = "apiwarden:seen:" + base;
+  var LEVELS = ["breaking", "additive", "info"];
+  var newsSheet = null;
+  var newestAt = 0;
+
+  function readSeen() {
+    try {
+      var raw = localStorage.getItem(SEEN_KEY);
+      return raw === null ? null : parseFloat(raw);
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeSeen(at) {
+    try {
+      localStorage.setItem(SEEN_KEY, String(at));
+    } catch (e) {
+      // Markers simply reappear on the next page; nothing is lost.
+    }
+  }
+
+  function worstOf(a, b) {
+    return LEVELS.indexOf(a) <= LEVELS.indexOf(b) ? a : b;
+  }
+
+  // Group unseen changes by operation: {"tasks|GET /tasks/": "additive", ...}
+  function summariseNews(entries) {
+    var seen = {};
+    entries.forEach(function (entry) {
+      (entry.changes || []).forEach(function (change) {
+        var key = change.app + "|" + (change.operation || "");
+        seen[key] = key in seen ? worstOf(seen[key], change.level) : change.level;
+      });
+    });
+    return seen;
+  }
+
+  function cssString(value) {
+    return '"' + String(value).replace(/\\/g, "\\\\").replace(/"/g, '\\"') + '"';
+  }
+
+  // RapiDoc's nav lives in a shadow root, so the markers are a stylesheet
+  // adopted into it. It survives the renderer re-rendering its own nav.
+  function markNav(grouped) {
+    if (!docs || !config.app) return;
+    var colours = { breaking: "#d13438", additive: "#2e8b57", info: "#8a8f98" };
+    var rules = Object.keys(grouped)
+      .map(function (key) {
+        var split = key.indexOf("|");
+        var app = key.slice(0, split);
+        var operation = key.slice(split + 1);
+        var parts = operation.split(" ");
+        if (app !== config.app || parts.length !== 2) return "";
+        // The same id RapiDoc gives the nav item; see goToOperation() below.
+        var id = parts[0].toLowerCase() + "-" + parts[1].replace(/[\s#:?&={}]/g, "-");
+        return (
+          '.nav-bar-path[data-content-id=' + cssString(id) + ']{position:relative;padding-inline-end:26px !important}' +
+          '.nav-bar-path[data-content-id=' + cssString(id) + ']::after{content:"";position:absolute;' +
+          "inset-inline-end:10px;inset-block-start:50%;width:8px;height:8px;margin-top:-4px;" +
+          "border-radius:50%;background:" + colours[grouped[key]] + "}"
+        );
+      })
+      .join("");
+
+    customElements.whenDefined("rapi-doc").then(function () {
+      var root = docs.shadowRoot;
+      if (!root) return;
+      if (typeof CSSStyleSheet === "function" && "adoptedStyleSheets" in root) {
+        if (!newsSheet) {
+          newsSheet = new CSSStyleSheet();
+          root.adoptedStyleSheets = root.adoptedStyleSheets.concat([newsSheet]);
+        }
+        newsSheet.replaceSync(rules);
+      } else {
+        var style = root.getElementById("apiwarden-news") || document.createElement("style");
+        style.id = "apiwarden-news";
+        style.textContent = rules;
+        root.appendChild(style);
+      }
+    });
+  }
+
+  function clearNews() {
+    Array.prototype.forEach.call(document.querySelectorAll(".news-count"), function (badge) {
+      badge.hidden = true;
+    });
+    var line = document.getElementById("portal-news");
+    if (line) line.hidden = true;
+    Array.prototype.forEach.call(document.querySelectorAll("#api-switch option[data-app]"), function (option) {
+      if (option.dataset.label) option.textContent = option.dataset.label;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".card .pill-new"), function (pill) {
+      pill.remove();
+    });
+    markNav({});
+  }
+
+  function showNews(fresh) {
+    var grouped = summariseNews(fresh);
+    var keys = Object.keys(grouped);
+    if (!keys.length) return clearNews();
+
+    var worst = keys.reduce(function (level, key) {
+      return worstOf(level, grouped[key]);
+    }, "info");
+    var label = keys.length + (keys.length === 1 ? " change" : " changes");
+
+    Array.prototype.forEach.call(document.querySelectorAll(".news-count"), function (badge) {
+      badge.textContent = String(keys.length);
+      badge.className = "news-count level-" + worst;
+      badge.title = label + " since your last visit";
+      badge.hidden = false;
+    });
+
+    var line = document.getElementById("portal-news");
+    if (line) {
+      document.getElementById("news-text").textContent = label + " since your last visit";
+      line.hidden = false;
+    }
+
+    // Per API: how many, and how bad, so the switcher and the cards point at it.
+    var perApp = {};
+    keys.forEach(function (key) {
+      var app = key.slice(0, key.indexOf("|"));
+      var entry = perApp[app] || (perApp[app] = { count: 0, worst: "info" });
+      entry.count += 1;
+      entry.worst = worstOf(entry.worst, grouped[key]);
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll("#api-switch option[data-app]"), function (option) {
+      if (!option.dataset.label) option.dataset.label = option.textContent;
+      var hit = perApp[option.dataset.app];
+      option.textContent = hit ? option.dataset.label + "  \u00b7 " + hit.count + " new" : option.dataset.label;
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll("a.card[data-app]"), function (card) {
+      var hit = perApp[card.getAttribute("data-app")];
+      var old = card.querySelector(".pill-new");
+      if (old) old.remove();
+      if (!hit) return;
+      var pill = document.createElement("span");
+      pill.className = "pill pill-new pill-" + hit.worst;
+      pill.textContent = hit.count + " new";
+      card.appendChild(document.createTextNode(" "));
+      card.appendChild(pill);
+    });
+
+    markNav(grouped);
+  }
+
+  // On the Changes page itself, point at the entries that are new, then treat
+  // them as seen: the reader is looking at them now.
+  function highlightEntries(seen) {
+    Array.prototype.forEach.call(document.querySelectorAll(".changelog .entry[data-at]"), function (entry) {
+      if (parseFloat(entry.getAttribute("data-at")) <= seen) return;
+      entry.classList.add("entry-new");
+      var tag = document.createElement("span");
+      tag.className = "entry-new-tag";
+      tag.textContent = "New";
+      entry.querySelector("summary").insertBefore(tag, entry.querySelector("summary").firstChild);
+    });
+  }
+
+  function loadNews() {
+    if (typeof fetch !== "function") return;
+    fetch(url("changes.json"), { credentials: "same-origin" })
+      .then(function (response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function (data) {
+        if (!data || !data.entries) return;
+        newestAt = data.entries.length ? data.entries[0].at : 0;
+
+        var seen = readSeen();
+        if (seen === null) {
+          // First visit: everything up to now is background, not news.
+          seen = newestAt;
+          writeSeen(seen);
+        }
+
+        if (document.querySelector(".changelog")) {
+          highlightEntries(seen);
+          writeSeen(Math.max(seen, newestAt));
+          clearNews();
+          return;
+        }
+        showNews(
+          data.entries.filter(function (entry) {
+            return entry.at > seen;
+          })
+        );
+      })
+      .catch(function () {
+        // A gated or offline portal just shows no markers.
+      });
+  }
+
+  var seenButton = document.getElementById("news-seen");
+  if (seenButton) {
+    seenButton.addEventListener("click", function () {
+      writeSeen(Math.max(readSeen() || 0, newestAt));
+      clearNews();
+    });
+  }
+
+  loadNews();
+
   /* ---------- global bearer token, applied to every API's Try it panel ----------
 
      Lives in localStorage only — never sent to or read by this server — so it
@@ -555,6 +771,7 @@
       // is never served from memory.
       loadIntoRenderer(config.spec + "?rev=" + encodeURIComponent(revision));
       flash("Documentation updated");
+      setTimeout(loadNews, 400); // the changelog is written as the edit is noticed
     });
   }
 

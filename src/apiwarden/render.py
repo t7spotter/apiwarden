@@ -90,7 +90,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
 
 def _topbar(config: Config, registry: Registry, active: str) -> str:
     options = "".join(
-        f'<option value="{_e(config.url(api["app"] + "/"))}"'
+        f'<option value="{_e(config.url(api["app"] + "/"))}" data-app="{_e(api["app"])}"'
         f'{" selected" if api["app"] == active else ""}>{_e(api["title"])}</option>'
         for api in api_summaries(registry)
     )
@@ -108,12 +108,16 @@ def _topbar(config: Config, registry: Registry, active: str) -> str:
 </div>
 {_token_control()}
 <nav class="topbar-links">
-  <a class="{changes}" href="{_e(config.url("changes"))}">Changes</a>
+  <a class="{changes}" href="{_e(config.url("changes"))}">Changes{_NEWS_BADGE}</a>
   <a href="{_e(config.url("index.json"))}">index.json</a>
   <a href="{_e(config.url("llms.txt"))}">llms.txt</a>
 </nav>
 <span class="topbar-rev">rev {_e(registry.revision)}</span>
 """
+
+
+# Filled in by shell.js with how many contract changes the reader has not seen.
+_NEWS_BADGE = ' <span class="news-count" hidden></span>'
 
 
 def _token_control() -> str:
@@ -167,7 +171,7 @@ def landing(config: Config, registry: Registry) -> str:
         spec = registry.specs[api["app"]]
         blurb = _e(md.strip(spec.description, 150)) if not spec.error else _e(spec.error)
         cards.append(
-            f'<a class="card" href="{_e(config.url(api["app"] + "/"))}">'
+            f'<a class="card" data-app="{_e(api["app"])}" href="{_e(config.url(api["app"] + "/"))}">'
             f'<h3>{_e(api["title"])}</h3><p>{blurb}</p>'
             f'<span class="pill">{api["operations"]} operations</span> '
             f'<span class="pill">v{_e(api["version"])}</span></a>'
@@ -317,7 +321,7 @@ def api_page(config: Config, registry: Registry, spec: Spec) -> str:
 def _portal_nav(config: Config, registry: Registry, active: str) -> str:
     """What goes in RapiDoc's nav-logo slot: which API, and search across all."""
     options = "".join(
-        f'<option value="{_e(config.url(api["app"] + "/"))}"'
+        f'<option value="{_e(config.url(api["app"] + "/"))}" data-app="{_e(api["app"])}"'
         f'{" selected" if api["app"] == active else ""}>{_e(api["title"])}</option>'
         for api in api_summaries(registry)
     )
@@ -331,10 +335,14 @@ def _portal_nav(config: Config, registry: Registry, active: str) -> str:
 {_token_control()}
 {_servers_control()}
 <div class="portal-links">
-  <a href="{_e(config.url("changes"))}">Changes</a>
+  <a href="{_e(config.url("changes"))}">Changes{_NEWS_BADGE}</a>
   <a href="{_e(config.url("index.json"))}">index.json</a>
   <a href="{_e(config.url("llms.txt"))}">llms.txt</a>
 </div>
+<p class="portal-news" id="portal-news" hidden>
+  <a href="{_e(config.url("changes"))}" id="news-text"></a>
+  <button type="button" id="news-seen" title="Clear the markers until the next change">Mark as seen</button>
+</p>
 """
 
 
@@ -469,7 +477,7 @@ def _entry(config: Config, entry: dict, open_: bool) -> str:
 
     worst = next((level for level in ("breaking", "additive", "info") if entry["counts"].get(level)), "info")
     return (
-        f'<details class="entry entry-{worst}"{" open" if open_ else ""}>'
+        f'<details class="entry entry-{worst}" data-at="{entry["at"]}"{" open" if open_ else ""}>'
         f'<summary class="entry-head">{_time(entry["at"])}{source}{_pills(entry["counts"])}</summary>'
         f'<div class="entry-body">{_change_groups(config, changes)}</div>'
         "</details>"
