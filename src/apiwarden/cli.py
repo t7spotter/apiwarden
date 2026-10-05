@@ -35,6 +35,17 @@ def main(argv: list[str] | None = None) -> int:
     serve.add_argument("--no-watch", action="store_true", help="do not reload when the specs change")
     serve.add_argument("--token", default=None, help="require this shared token on every request")
 
+    mock = sub.add_parser("mock", help="serve a mock API that answers with the specs' own examples")
+    _common(mock, positional=False)
+    mock.add_argument(
+        "targets",
+        nargs="*",
+        metavar="TARGET",
+        help="the spec directory and/or a port, in either order (default: api-docs on port 8000)",
+    )
+    mock.add_argument("--host", default="127.0.0.1")
+    mock.add_argument("--port", type=int, default=None, help="port to listen on (default: 8000)")
+
     check = sub.add_parser("check", help="validate the doc set")
     _common(check)
     check.add_argument("--strict", action="store_true", help="treat warnings as failures")
@@ -62,6 +73,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "serve" and _resolve_serve_targets(args) != 0:
         return 1
+    if args.command == "mock" and _resolve_serve_targets(args, MOCK_PORT) != 0:
+        return 1
 
     root = Path(args.root)
 
@@ -69,6 +82,8 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "serve":
         return _serve(config, args)
+    if args.command == "mock":
+        return _mock(config, args)
     if args.command == "check":
         return _check(config, args)
     if args.command == "build":
@@ -84,6 +99,7 @@ def main(argv: list[str] | None = None) -> int:
 
 DEFAULT_ROOT = "api-docs"
 DEFAULT_PORT = 8080
+MOCK_PORT = 8000  # what a spec's "Local development" server usually says
 
 
 def looks_like_port(value: str) -> bool:
@@ -99,7 +115,7 @@ def looks_like_port(value: str) -> bool:
     return 1 <= int(value) <= 65535
 
 
-def _resolve_serve_targets(args) -> int:
+def _resolve_serve_targets(args, default_port: int = DEFAULT_PORT) -> int:
     """Sort `serve`'s positionals into a root and a port, in either order.
 
     `apiwarden serve 8081` should mean the port, not a spec directory called
@@ -126,7 +142,7 @@ def _resolve_serve_targets(args) -> int:
         return 1
 
     args.root = root if root is not None else DEFAULT_ROOT
-    args.port = args.port if args.port is not None else (port if port is not None else DEFAULT_PORT)
+    args.port = args.port if args.port is not None else (port if port is not None else default_port)
     return 0
 
 
@@ -178,6 +194,39 @@ def _serve(config: Config, args) -> int:
     print(flush=True)
 
     serve(portal, host=args.host, port=args.port)
+    return 0
+
+
+def _mock(config: Config, args) -> int:
+    from .loader import load_registry
+    from .mock import build_routes, default_code, make_server
+
+    registry = load_registry(config.root, config.sources or None)
+    routes = build_routes(registry)
+    if not routes:
+        print(f"no operations found under {config.root}", file=sys.stderr)
+        return 1
+
+    shown = args.host if args.host not in ("0.0.0.0", "::") else "localhost"
+    print(f"\n  Mock API · {len(registry.specs)} specs from {config.root}")
+    print(f"  http://{shown}:{args.port}\n")
+    width = max(len(r.method) for r in routes)
+    for route in routes:
+        print(f"    {route.method:<{width}}  {route.template}  -> {default_code(route) or '?'}")
+    print(
+        "\n  Answers with the examples in the specs, re-read on every request."
+        "\n  Prefer: code=404 (or ?__code=404) picks another documented response."
+        "\n  In the portal, add this address in the sidebar's server field.\n",
+        flush=True,
+    )
+
+    server = make_server(registry, args.host, args.port, config.sources or None)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\n  stopped")
+    finally:
+        server.server_close()
     return 0
 
 
