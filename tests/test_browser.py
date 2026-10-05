@@ -459,3 +459,34 @@ def test_history_link_on_an_operation_shows_only_that_operations_changes(page, l
 
     # Looking at one operation's history must not clear the "new" markers.
     assert page.is_visible(".topbar .news-count")
+
+
+def test_theme_toggle_cycles_remembers_and_reaches_the_renderer(page, live):
+    base, _, portal = live
+    page.goto(f"{base}/changes", wait_until="load")
+    page.wait_for_timeout(600)
+
+    def theme():
+        return page.evaluate("document.documentElement.getAttribute('data-theme')")
+
+    def background():
+        return page.evaluate("getComputedStyle(document.body).backgroundColor")
+
+    assert theme() is None  # Auto: the page follows the system
+    assert "Auto" in page.inner_text("#theme-toggle")
+
+    page.click("#theme-toggle")
+    assert theme() == "light" and background() == "rgb(255, 255, 255)"
+    page.click("#theme-toggle")
+    assert theme() == "dark" and background() == "rgb(30, 30, 30)"
+
+    # Remembered across a real navigation, and applied to RapiDoc too.
+    page.goto(f"{base}/{_first_app(portal)}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    assert theme() == "dark"
+    assert page.evaluate("document.getElementById('docs').getAttribute('theme')") == "dark"
+    assert "Dark" in page.inner_text("#theme-toggle")
+
+    page.click("#theme-toggle")  # back to Auto
+    assert theme() is None
+    assert page.evaluate("document.getElementById('docs').getAttribute('theme')") == "light"  # this browser's system is light

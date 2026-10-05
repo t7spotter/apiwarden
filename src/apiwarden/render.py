@@ -53,6 +53,7 @@ _PAGE = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+{boot}
 <link rel="stylesheet" href="{shell_css}">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>&#128737;</text></svg>">
 </head>
@@ -80,6 +81,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
     }
     return _PAGE.format(
         title=_e(title),
+        boot=_theme_boot(config),
         shell_css=_e(config.asset("shell.css")),
         shell_js=_e(config.asset("shell.js")),
         topbar=_topbar(config, registry, active),
@@ -111,9 +113,34 @@ def _topbar(config: Config, registry: Registry, active: str) -> str:
   <a class="{changes}" href="{_e(config.url("changes"))}">Changes{_NEWS_BADGE}</a>
   <a href="{_e(config.url("index.json"))}">index.json</a>
   <a href="{_e(config.url("llms.txt"))}">llms.txt</a>
+  {_theme_toggle()}
 </nav>
 <span class="topbar-rev">rev {_e(registry.revision)}</span>
 """
+
+
+def _theme_boot(config: Config) -> str:
+    """Set the reader's chosen theme before the first paint.
+
+    shell.js does the rest, but it runs at the end of the body; without this a
+    reader who chose dark on a light system would see a flash of light first.
+    Same key and same rules as shell.js: a stored choice wins over the config.
+    """
+    key = json.dumps(f"apiwarden:theme:{config.base_path}")
+    fallback = json.dumps(config.theme)
+    return (
+        "<script>try{var t=localStorage.getItem(" + key + ");"
+        'if(t!=="auto"&&t!=="light"&&t!=="dark")t=' + fallback + ";"
+        'if(t==="light"||t==="dark")document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>'
+    )
+
+
+def _theme_toggle() -> str:
+    """Cycles Auto, Light, Dark. shell.js fills in the label and wires the click."""
+    return (
+        '<button type="button" class="theme-toggle" id="theme-toggle" aria-label="Colour theme">'
+        '<span class="theme-icon" aria-hidden="true"></span><span class="theme-label"></span></button>'
+    )
 
 
 # Filled in by shell.js with how many contract changes the reader has not seen.
@@ -232,6 +259,7 @@ _RAPIDOC = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{title}</title>
+{boot}
 <!-- shell.css styles the nav-logo slot: slotted content stays in the light DOM
      and is styled by this document, not by the shadow root. -->
 <link rel="stylesheet" href="{shell_css}">
@@ -307,6 +335,7 @@ def api_page(config: Config, registry: Registry, spec: Spec) -> str:
 
     return _RAPIDOC.format(
         title=_e(f"{spec.title} · {config.title}"),
+        boot=_theme_boot(config),
         shell_css=_e(config.asset("shell.css")),
         shell_js=_e(config.asset("shell.js")),
         extra_css=_e(config.asset("rapidoc-extra.css")),
@@ -339,6 +368,7 @@ def _portal_nav(config: Config, registry: Registry, active: str) -> str:
   <a href="{_e(config.url("index.json"))}">index.json</a>
   <a href="{_e(config.url("llms.txt"))}">llms.txt</a>
   <a href="{_e(config.url("types/" + active + ".ts"))}" title="TypeScript types for this API">types.ts</a>
+  {_theme_toggle()}
 </div>
 <p class="portal-news" id="portal-news" hidden>
   <a href="{_e(config.url("changes"))}" id="news-text"></a>

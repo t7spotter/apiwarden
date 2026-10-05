@@ -164,6 +164,79 @@
     });
   }
 
+  /* ---------- colour theme: Auto, Light or Dark ----------
+
+     Auto follows the system. The reader's choice is kept in localStorage like
+     the token and wins over the server's `theme` setting, which only decides
+     what a first-time reader sees. The page's own CSS reads data-theme on
+     <html>; RapiDoc takes its colours as attributes, so those are set here.
+     The inline script in <head> applies the same choice before first paint. */
+
+  var THEME_KEY = "apiwarden:theme:" + base;
+  var THEME_ORDER = ["auto", "light", "dark"];
+  var THEME_SHOWN = { auto: ["\u25d0", "Auto"], light: ["\u2600", "Light"], dark: ["\u263e", "Dark"] };
+  var PALETTES = {
+    dark: { theme: "dark", bg: "#1e1e1e", text: "#d4d4d4", nav: "#252526", navText: "#bbbbbb", hover: "#37373d", accent: "#4daafc" },
+    light: { theme: "light", bg: "#ffffff", text: "#1a1d21", nav: "#f3f3f3", navText: "#3b4048", hover: "#e4e6e9", accent: "#0066b8" }
+  };
+  var systemDark = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  var themeButton = document.getElementById("theme-toggle");
+
+  function themeChoice() {
+    try {
+      var stored = localStorage.getItem(THEME_KEY);
+      if (THEME_ORDER.indexOf(stored) !== -1) return stored;
+    } catch (e) {
+      // Storage blocked: fall through to the server's default.
+    }
+    return THEME_ORDER.indexOf(config.theme) !== -1 ? config.theme : "auto";
+  }
+
+  function applyTheme() {
+    var choice = themeChoice();
+    var root = document.documentElement;
+    if (choice === "auto") root.removeAttribute("data-theme");
+    else root.setAttribute("data-theme", choice);
+
+    var palette = PALETTES[choice === "auto" ? (systemDark && systemDark.matches ? "dark" : "light") : choice];
+    root.style.background = palette.bg;
+    document.body.style.background = palette.bg;
+
+    if (docs) {
+      docs.setAttribute("theme", palette.theme);
+      docs.setAttribute("bg-color", palette.bg);
+      docs.setAttribute("text-color", palette.text);
+      docs.setAttribute("nav-bg-color", palette.nav);
+      docs.setAttribute("nav-text-color", palette.navText);
+      docs.setAttribute("nav-hover-bg-color", palette.hover);
+      docs.setAttribute("nav-accent-color", palette.accent);
+      docs.setAttribute("primary-color", palette.accent);
+    }
+
+    if (themeButton) {
+      var next = THEME_ORDER[(THEME_ORDER.indexOf(choice) + 1) % THEME_ORDER.length];
+      themeButton.querySelector(".theme-icon").textContent = THEME_SHOWN[choice][0];
+      themeButton.querySelector(".theme-label").textContent = THEME_SHOWN[choice][1];
+      var meaning = choice === "auto" ? "follows your system" : "pinned";
+      themeButton.title = "Theme: " + THEME_SHOWN[choice][1] + " (" + meaning + "). Click for " + THEME_SHOWN[next][1] + ".";
+      themeButton.setAttribute("aria-label", themeButton.title);
+    }
+  }
+
+  if (themeButton) {
+    themeButton.addEventListener("click", function () {
+      var next = THEME_ORDER[(THEME_ORDER.indexOf(themeChoice()) + 1) % THEME_ORDER.length];
+      try {
+        localStorage.setItem(THEME_KEY, next);
+      } catch (e) {
+        // Applies for this page load; just won't carry over.
+      }
+      applyTheme();
+    });
+  }
+  applyTheme();
+  if (systemDark && systemDark.addEventListener) systemDark.addEventListener("change", applyTheme);
+
   /* ---------- what changed since the reader's last visit ----------
 
      The changelog already records every contract change with a timestamp. The
@@ -477,29 +550,6 @@
 
   if (!docs) return;
   docs.addEventListener("spec-loaded", applyToken);
-
-  function applyTheme() {
-    if (config.theme !== "auto") return;
-    var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    var palette = dark
-      ? { theme: "dark", bg: "#1e1e1e", text: "#d4d4d4", nav: "#252526", navText: "#bbbbbb", hover: "#37373d", accent: "#4daafc" }
-      : { theme: "light", bg: "#ffffff", text: "#1a1d21", nav: "#f3f3f3", navText: "#3b4048", hover: "#e4e6e9", accent: "#0066b8" };
-
-    docs.setAttribute("theme", palette.theme);
-    docs.setAttribute("bg-color", palette.bg);
-    docs.setAttribute("text-color", palette.text);
-    docs.setAttribute("nav-bg-color", palette.nav);
-    docs.setAttribute("nav-text-color", palette.navText);
-    docs.setAttribute("nav-hover-bg-color", palette.hover);
-    docs.setAttribute("nav-accent-color", palette.accent);
-    docs.setAttribute("primary-color", palette.accent);
-    document.body.style.background = palette.bg;
-  }
-
-  applyTheme();
-  if (config.theme === "auto" && window.matchMedia) {
-    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", applyTheme);
-  }
 
   function goToOperation(method, path) {
     // RapiDoc builds an operation's element id as `<method>-<path>`, replacing

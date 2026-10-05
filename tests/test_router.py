@@ -308,3 +308,20 @@ def test_asset_urls_carry_the_version(portal, registry):
         markup = get(portal, path).body.decode()
         assert f"shell.js?v={__version__}" in markup
         assert f"shell.css?v={__version__}" in markup
+
+
+def test_every_page_has_the_theme_toggle(portal, registry):
+    for path in ("/", "/changes", f"/{registry.names()[0]}/"):
+        markup = get(portal, path).body.decode()
+        assert 'id="theme-toggle"' in markup, path
+
+
+def test_theme_is_set_before_first_paint(registry, sample_root):
+    # The boot script applies a stored choice, else the configured theme, to
+    # <html> before the CSS paints — so there is no flash of the wrong one.
+    for path in ("/", f"/{registry.names()[0]}/"):
+        portal = Portal(Config(root=sample_root, theme="dark", base_path="/docs"), registry)
+        markup = handle(Request("GET", "/docs" + path), portal).body.decode()
+        assert 'localStorage.getItem("apiwarden:theme:/docs")' in markup
+        assert 'if(t!=="auto"&&t!=="light"&&t!=="dark")t="dark"' in markup
+        assert markup.index("apiwarden:theme:") < markup.index("shell.css")
