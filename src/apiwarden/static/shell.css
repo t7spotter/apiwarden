@@ -180,6 +180,42 @@ h1, h2, h3, h4 { line-height: 1.3; }
 }
 .portal-token-clear:hover { background: var(--surface-2); color: var(--text); }
 
+.portal-servers { flex: 1 1 140px; }
+.portal-server-add { display: flex; gap: 4px; }
+.portal-server-add .portal-token { padding-inline-end: 9px; min-width: 0; }
+.portal-server-btn {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 12.5px;
+  padding: 0 10px;
+  cursor: pointer;
+}
+.portal-server-btn:hover { border-color: var(--accent); }
+.portal-server-list { list-style: none; margin: 4px 0 0; padding: 0; }
+.portal-server-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.portal-server-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.portal-server-list button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.portal-server-list button:hover { color: var(--text); }
+.portal-server-error { margin: 4px 0 0; font-size: 11.5px; color: #d13438; }
+
 .topbar-links { display: flex; gap: 4px; margin-inline-start: auto; }
 .topbar-links a {
   font-size: 12.5px;

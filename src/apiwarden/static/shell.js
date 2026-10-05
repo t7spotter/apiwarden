@@ -276,15 +276,137 @@
     setTimeout(pendingOperation, 60);
   });
 
-  // The element has to be upgraded before it has loadSpec on it.
-  function loadIntoRenderer(source) {
-    if (typeof docs.loadSpec === "function") {
-      docs.loadSpec(source);
-    } else if (window.customElements) {
-      customElements.whenDefined("rapi-doc").then(function () {
-        docs.loadSpec(source);
-      });
+  /* ---------- extra servers for Try it (localhost, staging, …) ----------
+
+     Held in localStorage, namespaced like the token. They are merged into the
+     spec in front of its own servers before RapiDoc sees it, so they appear in
+     its server dropdown and the newest one is selected by default. */
+
+  var SERVERS_KEY = "apiwarden:servers:" + base;
+  var serverForm = document.getElementById("server-form");
+  var serverInput = document.getElementById("server-input");
+  var serverList = document.getElementById("server-list");
+  var serverError = document.getElementById("server-error");
+
+  function readServers() {
+    try {
+      var list = JSON.parse(localStorage.getItem(SERVERS_KEY) || "[]");
+      return Array.isArray(list) ? list.filter(function (u) { return typeof u === "string"; }) : [];
+    } catch (e) {
+      return [];
     }
+  }
+
+  function writeServers(list) {
+    try {
+      if (list.length) localStorage.setItem(SERVERS_KEY, JSON.stringify(list));
+      else localStorage.removeItem(SERVERS_KEY);
+    } catch (e) {
+      // Works for this page load; just won't carry over.
+    }
+  }
+
+  // "localhost:8000" -> "http://localhost:8000"; other bare hosts get https.
+  // Returns "" for anything that isn't a usable http(s) base URL.
+  function normalizeServer(raw) {
+    var value = raw.trim();
+    if (!value) return "";
+    if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) {
+      var local = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])(:|\/|$)/i.test(value);
+      value = (local ? "http://" : "https://") + value;
+    }
+    try {
+      var parsed = new URL(value);
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return "";
+      if (!parsed.hostname) return "";
+      return (parsed.origin + parsed.pathname).replace(/\/+$/, "");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function renderServers() {
+    if (!serverList) return;
+    serverList.innerHTML = "";
+    readServers().forEach(function (server) {
+      var item = document.createElement("li");
+      var label = document.createElement("span");
+      label.textContent = server;
+      label.title = server;
+      var remove = document.createElement("button");
+      remove.type = "button";
+      remove.textContent = "\u00d7";
+      remove.setAttribute("aria-label", "Remove server " + server);
+      remove.addEventListener("click", function () {
+        writeServers(readServers().filter(function (u) { return u !== server; }));
+        renderServers();
+        reloadSpec();
+      });
+      item.appendChild(label);
+      item.appendChild(remove);
+      serverList.appendChild(item);
+    });
+  }
+
+  function showServerError(message) {
+    if (!serverError) return;
+    serverError.textContent = message;
+    serverError.hidden = !message;
+  }
+
+  if (serverForm) {
+    renderServers();
+    serverForm.addEventListener("submit", function (event) {
+      event.preventDefault();
+      var server = normalizeServer(serverInput.value);
+      if (!server) {
+        showServerError("Enter a http(s) address, like localhost:8000");
+        return;
+      }
+      showServerError("");
+      // Newest first, so it becomes the selected server.
+      writeServers([server].concat(readServers().filter(function (u) { return u !== server; })));
+      serverInput.value = "";
+      renderServers();
+      reloadSpec();
+    });
+    serverInput.addEventListener("input", function () { showServerError(""); });
+  }
+
+  function withServers(spec) {
+    var extra = readServers();
+    if (!extra.length || !spec || typeof spec !== "object") return spec;
+    var own = (spec.servers || []).filter(function (s) { return extra.indexOf(s.url) === -1; });
+    spec.servers = extra
+      .map(function (u) { return { url: u, description: "Added in this browser" }; })
+      .concat(own);
+    return spec;
+  }
+
+  // The element has to be upgraded before it has loadSpec on it.
+  var currentSource = config.spec;
+
+  function loadIntoRenderer(source) {
+    currentSource = source;
+    var load = function () {
+      if (!readServers().length) return docs.loadSpec(source);
+      fetch(source, { credentials: "same-origin" })
+        .then(function (response) {
+          if (!response.ok) throw new Error(response.status);
+          return response.json();
+        })
+        .then(function (spec) { docs.loadSpec(withServers(spec)); })
+        .catch(function () { docs.loadSpec(source); }); // no extras beats no docs
+    };
+    if (typeof docs.loadSpec === "function") {
+      load();
+    } else if (window.customElements) {
+      customElements.whenDefined("rapi-doc").then(load);
+    }
+  }
+
+  function reloadSpec() {
+    loadIntoRenderer(currentSource);
   }
 
   loadIntoRenderer(config.spec);

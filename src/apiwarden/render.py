@@ -134,6 +134,27 @@ def _token_control() -> str:
 """
 
 
+def _servers_control() -> str:
+    """Extra Try it servers — localhost, a staging host — added in the browser.
+
+    Kept in localStorage like the token. shell.js merges them in front of the
+    spec's own servers before RapiDoc renders it, so they show up in its server
+    dropdown and the first one added is the one Try it calls.
+    """
+    return """
+<div class="portal-servers">
+  <form class="portal-server-add" id="server-form" autocomplete="off">
+    <input class="portal-token" id="server-input" type="text" inputmode="url"
+           placeholder="Add server, e.g. localhost:8000" spellcheck="false"
+           aria-label="Add a server for the Try it panel">
+    <button type="submit" class="portal-server-btn">Add</button>
+  </form>
+  <ul class="portal-server-list" id="server-list" aria-label="Servers added in this browser"></ul>
+  <p class="portal-server-error" id="server-error" role="alert" hidden></p>
+</div>
+"""
+
+
 # ---------------------------------------------------------------- landing
 
 
@@ -308,6 +329,7 @@ def _portal_nav(config: Config, registry: Registry, active: str) -> str:
        autocomplete="off" aria-label="Search every API">
 <ul class="portal-results" id="search-results"></ul>
 {_token_control()}
+{_servers_control()}
 <div class="portal-links">
   <a href="{_e(config.url("changes"))}">Changes</a>
   <a href="{_e(config.url("index.json"))}">index.json</a>
