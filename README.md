@@ -60,6 +60,7 @@ the renderer rather than by reloading, so nobody loses their place.
 | `GET /openapi/<name>.json`, `.yaml` | The raw specs, byte-faithful |
 | `GET /display/<name>.json` | The renderer's copy: `x-*` folded into the overview |
 | `GET /operation/<id>.json` | One operation, `$ref`s inlined |
+| `GET /types/<name>.ts` | TypeScript types for one spec: every schema, plus `<Operation>Params`, `Request` and `Response` |
 | `GET /curl/<id>.txt` | A ready-to-run curl command for one operation (`?server=` picks the base URL) |
 | `GET /revision.json` | Content hashes — poll to tell whether anything changed |
 | `GET /changes.json` | The changelog, newest first; `?since=…` compares against one baseline |
@@ -84,6 +85,7 @@ apiwarden mcp ./api-docs
 
 ```
 apiwarden serve ./api-docs              # http://127.0.0.1:8080, reloads as you edit
+apiwarden types ./api-docs -o src/api   # TypeScript types, one <api>.ts per spec
 apiwarden mock ./api-docs               # http://127.0.0.1:8000, answers from the specs' examples
 apiwarden check ./api-docs              # lint: operationIds, summaries, unresolved $refs
 apiwarden build ./api-docs -o dist/     # self-contained static copy, for CI publishing
@@ -120,6 +122,36 @@ curl -H 'Prefer: code=401' http://localhost:8000/tasks/   # the same, as a heade
 It answers CORS preflights, honours the server's base path (`/v1`) but does not
 require it, and says what it does and does not document in its 404, 405 and 501
 replies. It does not validate requests or keep state.
+
+### TypeScript types
+
+The types a frontend writes by hand go stale the moment a schema changes. Fetch
+them instead, in the build, and a change reaches the compiler:
+
+```
+curl https://your-host/api-docs/types/tasks.ts -o src/api/tasks.ts
+apiwarden types ./api-docs -o src/api     # or, from a checkout of the specs
+```
+
+```ts
+export interface TaskCreate {
+  title: string;
+  priority?: "low" | "medium" | "high";
+}
+
+/** POST /tasks/ — request body */
+export type CreateTaskRequest = TaskCreate;
+/** POST /tasks/ — 201 response */
+export type CreateTaskResponse = Task;
+```
+
+Every component schema becomes a type (`required` decides what is optional;
+`allOf`, `oneOf`, `nullable`, enums and recursive schemas are handled), and each
+operation gets `<OperationId>Params` for its path and query parameters,
+`<OperationId>Request` for the JSON body and `<OperationId>Response` for the
+lowest documented success. The file carries no timestamp or hash, so it changes
+only when a type or a description does, and committing it makes a diff of the
+file show exactly what moved. A static `build` includes them too.
 
 ## What changed
 
