@@ -243,7 +243,7 @@ def test_an_unknown_revision_is_reported(registry):
 # ---------------------------------------------------------------- surfaces
 
 
-def test_changes_route_without_a_baseline_explains_itself(registry, sample_root, tmp_path):
+def test_changes_route_without_a_baseline_shows_the_changelog(sample_root, tmp_path):
     import shutil
 
     plain = tmp_path / "no-git"
@@ -252,10 +252,13 @@ def test_changes_route_without_a_baseline_explains_itself(registry, sample_root,
 
     page = handle(Request("GET", "/changes"), portal)
     assert page.status == 200
-    assert b"snapshot.json" in page.body
+    assert b"Nothing has changed yet" in page.body
 
-    payload = json.loads(handle(Request("GET", "/changes.json"), portal).body)
-    assert payload["error"]
+    response = handle(Request("GET", "/changes.json"), portal)
+    payload = json.loads(response.body)
+    assert response.status == 200
+    assert payload["entries"] == []
+    assert payload["tracking_since"]
 
 
 def test_changes_json_reports_a_known_baseline(registry, sample_root, tmp_path):

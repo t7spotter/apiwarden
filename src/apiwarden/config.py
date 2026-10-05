@@ -17,6 +17,7 @@ _KEYS = (
     "token",
     "base_path",
     "sources",
+    "history",
 )
 
 
@@ -39,6 +40,9 @@ class Config:
     base_path: str = ""
     # Explicit {name: path} overriding discovery.
     sources: dict[str, str] = field(default_factory=dict)
+    # Where the automatic changelog is kept. Empty means the user's cache
+    # directory; point it at persistent storage to keep history across deploys.
+    history: str | None = None
 
     def __post_init__(self) -> None:
         self.root = Path(self.root).expanduser()

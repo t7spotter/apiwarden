@@ -12,6 +12,7 @@ import copy
 import html
 import json
 from typing import Any
+from urllib.parse import quote
 
 from . import md
 from .config import Config
@@ -373,24 +374,121 @@ def _md_cell(value: Any) -> str:
 
 _LEVEL_LABEL = {"breaking": "Breaking", "additive": "Additive", "info": "Note"}
 
+# What each kind of change means, in words a reader of the log would use.
+_KIND_LABEL = {
+    "api-added": "New API",
+    "api-removed": "API removed",
+    "operation-added": "New endpoint",
+    "operation-removed": "Endpoint removed",
+    "operation-id-changed": "Operation ID renamed",
+    "auth-required": "Now requires authentication",
+    "auth-changed": "Authentication changed",
+    "deprecated": "Deprecated",
+    "summary-changed": "Summary reworded",
+    "parameter-added": "Parameter added",
+    "parameter-removed": "Parameter removed",
+    "parameter-now-required": "Parameter now required",
+    "parameter-type-changed": "Parameter type changed",
+    "field-added": "Field added",
+    "field-removed": "Field removed",
+    "field-type-changed": "Field type changed",
+    "field-now-required": "Field now required",
+    "field-now-optional": "Field now optional",
+    "enum-value-added": "Allowed value added",
+    "enum-value-removed": "Allowed value removed",
+    "response-added": "Response added",
+    "response-removed": "Response removed",
+}
 
-def changes_page(config: Config, registry: Registry, since: str, changes, error: str | None) -> str:
-    from .diff import summarize
+# Kinds whose detail is a sentence rather than a field name or value.
+_PROSE_KINDS = {
+    "api-added", "api-removed", "operation-added", "operation-removed",
+    "auth-required", "auth-changed", "deprecated", "summary-changed",
+}
 
-    counts = summarize(changes)
-    pills = "".join(
+# Entries past this many start collapsed, so the page opens on what is recent.
+_OPEN_ENTRIES = 3
+
+
+def changelog_page(config: Config, registry: Registry, entries: list[dict], since: float | None) -> str:
+    """Every recorded change to the contract, newest first."""
+    if entries:
+        body = "".join(_entry(config, entry, open_=index < _OPEN_ENTRIES) for index, entry in enumerate(entries))
+    else:
+        body = (
+            '<p class="empty">Nothing has changed yet. Edit a spec and the difference '
+            "shows up here — no tags or snapshots needed.</p>"
+        )
+
+    tracking = f"Tracking since {_time(since, 'since-time')}." if since else ""
+    main = f"""
+<div class="page-head">
+  <h1>Changes</h1>
+  <p>Every change to the API contract, newest first, recorded automatically whenever a spec changes. {tracking}</p>
+</div>
+<div class="changelog">{body}</div>
+{_since_form("", open_=False)}
+"""
+    return page(config, registry, f"Changes · {config.title}", main, active="__changes__")
+
+
+def _entry(config: Config, entry: dict, open_: bool) -> str:
+    from .diff import Change
+
+    changes = [Change(**change) for change in entry["changes"]]
+    commit = entry.get("commit")
+    if commit:
+        source = (
+            f'<span class="entry-source"><code>{_e(commit["sha"][:7])}</code> '
+            f'{_e(commit["subject"])} <span class="entry-author">· {_e(commit["author"])}</span></span>'
+        )
+    else:
+        source = '<span class="entry-source">' + _e(", ".join(entry["apis"])) + "</span>"
+
+    worst = next((level for level in ("breaking", "additive", "info") if entry["counts"].get(level)), "info")
+    return (
+        f'<details class="entry entry-{worst}"{" open" if open_ else ""}>'
+        f'<summary class="entry-head">{_time(entry["at"])}{source}{_pills(entry["counts"])}</summary>'
+        f'<div class="entry-body">{_change_groups(config, changes)}</div>'
+        "</details>"
+    )
+
+
+def _time(stamp: float, kind: str = "entry-time") -> str:
+    """A UTC time the shell rewrites into the reader's own zone (and, on an entry, a "2 hours ago")."""
+    from datetime import datetime, timezone
+
+    moment = datetime.fromtimestamp(stamp, tz=timezone.utc)
+    return (
+        f'<time class="{kind}" datetime="{moment.isoformat()}">'
+        f'{moment.strftime("%d %b %Y, %H:%M")} UTC</time>'
+    )
+
+
+def _pills(counts: dict[str, int]) -> str:
+    return '<span class="entry-pills">' + "".join(
         f'<span class="pill pill-{level}">{count} {_LEVEL_LABEL[level].lower()}</span>'
         for level, count in counts.items()
         if count
-    )
+    ) + "</span>"
 
-    form = f"""
-<form class="since-form" method="get">
-  <label for="since">Compare against</label>
-  <input id="since" name="since" value="{_e(since)}" placeholder="a git revision, tag, or snapshot.json">
-  <button type="submit">Show changes</button>
-</form>
+
+def _since_form(since: str, open_: bool) -> str:
+    return f"""
+<details class="since-details"{" open" if open_ else ""}>
+  <summary>Compare against a specific version</summary>
+  <form class="since-form" method="get">
+    <label for="since">Baseline</label>
+    <input id="since" name="since" value="{_e(since)}" placeholder="a git revision, tag, or snapshot.json">
+    <button type="submit">Compare</button>
+  </form>
+</details>
 """
+
+
+def changes_page(config: Config, registry: Registry, since: str, changes, error: str | None) -> str:
+    """One comparison against a baseline the reader named."""
+    from .diff import summarize
 
     if error:
         body = f'<div class="notice">{_e(error)}</div>'
@@ -401,14 +499,19 @@ def changes_page(config: Config, registry: Registry, since: str, changes, error:
 
     main = f"""
 <div class="page-head">
-  <h1>Changes</h1>
-  <p>What moved between a baseline and the specs as they are right now.</p>
-  <div class="meta-row">{pills}</div>
+  <h1>Changes since <code>{_e(since)}</code></h1>
+  <p>What moved between that baseline and the specs as they are right now.
+     <a href="{_e(config.url("changes"))}">Back to the full history</a></p>
+  <div class="meta-row">{_pills(summarize(changes))}</div>
 </div>
-{form}
+{_since_form(since, open_=True)}
 {body}
 """
     return page(config, registry, f"Changes · {config.title}", main, active="__changes__")
+
+
+def _detail(change) -> str:
+    return _e(change.detail) if change.kind in _PROSE_KINDS else f"<code>{_e(change.detail)}</code>"
 
 
 def _change_groups(config: Config, changes) -> str:
@@ -419,13 +522,15 @@ def _change_groups(config: Config, changes) -> str:
     blocks = []
     for (app, operation), items in grouped.items():
         worst = min(items, key=lambda c: ("breaking", "additive", "info").index(c.level)).level
+        # ?op= is what the API page scrolls to once the spec has loaded.
+        target = app + "/" + (f"?op={quote(operation)}" if operation else "")
         heading = _e(operation) if operation else "whole API"
-        # The operation id is the anchor the API page opens on.
-        link = f'<a href="{_e(config.url(app + "/"))}">{_e(app)}</a>'
+        link = f'<a href="{_e(config.url(target))}">{_e(app)}</a>'
 
         rows = "".join(
             f'<tr><td><span class="tag tag-{item.level}">{_LEVEL_LABEL[item.level]}</span></td>'
-            f"<td><code>{_e(item.kind)}</code></td><td>{_e(item.detail)}</td></tr>"
+            f'<td title="{_e(item.kind)}">{_e(_KIND_LABEL.get(item.kind, item.kind))}</td>'
+            f"<td>{_detail(item)}</td></tr>"
             for item in items
         )
         blocks.append(
@@ -434,4 +539,3 @@ def _change_groups(config: Config, changes) -> str:
             f'<table class="kv change-table">{rows}</table></div>'
         )
     return "".join(blocks)
-

@@ -70,6 +70,7 @@ def docs(django_request: HttpRequest, path: str = "") -> HttpResponse:
         replace(shared.config, base_path=_mount_point(django_request)),
         shared.registry,
         shared.watcher,
+        shared.changelog,
     )
     response = handle(_to_request(django_request), mounted)
 

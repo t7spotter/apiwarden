@@ -51,9 +51,10 @@ def main(argv: list[str] | None = None) -> int:
     _common(snapshot)
     snapshot.add_argument("-o", "--output", default="apiwarden-snapshot.json")
 
-    changes = sub.add_parser("changes", help="show what changed since a baseline")
+    changes = sub.add_parser("changes", help="show the changelog, or what changed since a baseline")
     _common(changes)
-    changes.add_argument("--since", default=None, help="a git revision, or a snapshot file")
+    changes.add_argument("--since", default=None,
+                         help="compare against a git revision or snapshot file instead of showing the changelog")
     changes.add_argument("--fail-on-breaking", action="store_true",
                          help="exit non-zero when a breaking change is found")
 
@@ -222,10 +223,14 @@ def _changes(config: Config, args) -> int:
     from .diff import BREAKING, DiffUnavailable, compare, default_since, snapshot, snapshot_at, summarize
 
     registry = load_registry(config.root, config.sources or None)
-    since = args.since or default_since(registry)
-    if not since:
-        print("nothing to compare against: pass --since <git revision or snapshot.json>", file=sys.stderr)
+    # Gating CI needs one definite baseline; reading the log does not.
+    since = args.since or (default_since(registry) if args.fail_on_breaking else None)
+    if args.fail_on_breaking and not since:
+        print("--fail-on-breaking needs a baseline: pass --since <git revision or snapshot.json>",
+              file=sys.stderr)
         return 1
+    if not since:
+        return _changelog(config, registry)
 
     try:
         changes = compare(snapshot_at(registry, since), snapshot(registry))
@@ -241,6 +246,32 @@ def _changes(config: Config, args) -> int:
     print(f"since {since}: {counts[BREAKING]} breaking, "
           f"{counts['additive']} additive, {counts['info']} informational")
     return 1 if (args.fail_on_breaking and counts[BREAKING]) else 0
+
+
+def _changelog(config: Config, registry) -> int:
+    from datetime import datetime
+
+    from . import history
+
+    changelog = history.open_for(config)
+    changelog.record(registry)
+    entries = changelog.entries()
+    if not entries:
+        print("no changes recorded yet — they are logged from now on, whenever a spec changes")
+        return 0
+
+    for entry in entries:
+        when = datetime.fromtimestamp(entry["at"]).strftime("%Y-%m-%d %H:%M")
+        commit = entry.get("commit")
+        source = f"  {commit['sha'][:7]} {commit['subject']}" if commit else ""
+        counts = entry["counts"]
+        print(f"{when}{source}  ({counts['breaking']} breaking, {counts['additive']} additive, "
+              f"{counts['info']} informational)")
+        for change in entry["changes"]:
+            where = f"{change['app']} {change['operation']}".strip()
+            print(f"  {change['level']:9} {where:50} {change['kind']}: {change['detail']}")
+        print()
+    return 0
 
 
 def _mcp(config: Config) -> int:

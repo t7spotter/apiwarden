@@ -16,7 +16,7 @@ from typing import Any, Iterator
 
 import yaml
 
-from . import agent, diff, mcp_http, render
+from . import agent, diff, history, mcp_http, render
 from .config import Config
 from .http import Request, Response, html, json_response, not_found, text
 from .index import conventions, operation_detail, schema_detail, search_operations
@@ -32,15 +32,24 @@ class Portal:
     Created once by each adapter. Cheap to build; reload is incremental.
     """
 
-    def __init__(self, config: Config, registry: Registry, watcher: Watcher | None = None) -> None:
+    def __init__(
+        self,
+        config: Config,
+        registry: Registry,
+        watcher: Watcher | None = None,
+        changelog: history.History | None = None,
+    ) -> None:
         self.config = config
         self.registry = registry
         self.watcher = watcher
+        # In memory unless build_portal hands over one backed by a file.
+        self.changelog = changelog or history.History(None)
 
     def refresh(self) -> None:
         """Re-read changed specs when no watcher thread is doing it for us."""
         if self.watcher is None and self.config.watch:
-            reload_if_changed(self.registry, self.config.sources or None)
+            if reload_if_changed(self.registry, self.config.sources or None):
+                self.changelog.record(self.registry)
 
 
 def handle(request: Request, portal: Portal) -> Response:
@@ -258,17 +267,27 @@ def _mcp(request: Request, portal: Portal) -> Response:
 
 def _changes(request: Request, portal: Portal, as_json: bool) -> Response:
     registry, config = portal.registry, portal.config
-    since = request.query.get("since") or diff.default_since(registry) or ""
+    since = request.query.get("since", "").strip()
+
+    if not since:
+        portal.changelog.record(registry)
+        entries = portal.changelog.entries()
+        if as_json:
+            return json_response(
+                {
+                    "revision": registry.revision,
+                    "tracking_since": portal.changelog.tracking_since,
+                    "entries": entries,
+                }
+            )
+        return html(render.changelog_page(config, registry, entries, portal.changelog.tracking_since))
 
     changes: list[diff.Change] = []
     error = None
-    if since:
-        try:
-            changes = diff.compare(diff.snapshot_at(registry, since), diff.snapshot(registry))
-        except diff.DiffUnavailable as exc:
-            error = str(exc)
-    else:
-        error = "Pass ?since=<git revision or snapshot.json> to compare against a baseline."
+    try:
+        changes = diff.compare(diff.snapshot_at(registry, since), diff.snapshot(registry))
+    except diff.DiffUnavailable as exc:
+        error = str(exc)
 
     if as_json:
         return json_response(
@@ -321,8 +340,12 @@ def build_portal(config: Config, watch: bool | None = None) -> Portal:
     from .loader import load_registry
 
     registry = load_registry(config.root, config.sources or None)
+    changelog = history.open_for(config)
+    # Catches whatever changed while nothing was running, e.g. a deploy.
+    changelog.record(registry)
+
     watcher = None
     if watch if watch is not None else config.watch:
-        watcher = Watcher(registry, config.sources or None)
+        watcher = Watcher(registry, config.sources or None, on_change=lambda _: changelog.record(registry))
         watcher.start()
-    return Portal(config, registry, watcher)
+    return Portal(config, registry, watcher, changelog)

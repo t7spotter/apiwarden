@@ -42,14 +42,14 @@ the renderer rather than by reloading, so nobody loses their place.
 
 | Endpoint | What it is |
 |---|---|
-| `POST /mcp` | MCP server — `list_apis`, `search_operations`, `get_operation`, `get_schema`, `get_conventions`, `get_spec` |
+| `POST /mcp` | MCP server — `list_apis`, `search_operations`, `get_operation`, `get_schema`, `get_conventions`, `list_changes`, `get_spec` |
 | `GET /index.json` | Every operation across every spec, one compact document |
 | `GET /llms.txt`, `/llms-full.txt` | The doc set as plain text |
 | `GET /openapi/<name>.json`, `.yaml` | The raw specs, byte-faithful |
 | `GET /display/<name>.json` | The renderer's copy: `x-*` folded into the overview |
 | `GET /operation/<id>.json` | One operation, `$ref`s inlined |
 | `GET /revision.json` | Content hashes — poll to tell whether anything changed |
-| `GET /changes?since=…` | What moved since a baseline, breaking changes called out |
+| `GET /changes.json` | The changelog, newest first; `?since=…` compares against one baseline |
 
 Point an agent at the MCP endpoint once and it never reads a stale spec again:
 
@@ -92,25 +92,41 @@ spec updates the page without a restart.
 ## What changed
 
 Being always current is only half the problem — the other half is knowing what
-moved. `changes` compares the specs against a baseline and sorts the result by
-what it does to a caller:
+moved. apiwarden keeps a changelog by itself: whenever a spec changes — an edit
+while it is serving, or a new deploy noticed at startup — it compares the API
+contract against the last one it saw and records the difference with a
+timestamp. Open `/changes` and the history is there, newest first, each change
+sorted by what it does to a caller. There is nothing to tag or configure.
 
 ```
-$ apiwarden changes ./api-docs --since v1.4.0
-breaking  accounts POST /v1/accounts/otp/     field-added: request.device_id (required)
-breaking  accounts POST /v1/accounts/otp/     response-removed: 429 no longer documented
-info      accounts POST /v1/accounts/otp/     summary-changed: Send a one-time login code.
-since v1.4.0: 2 breaking, 0 additive, 1 informational
+$ apiwarden changes ./api-docs
+2026-10-05 14:32  (2 breaking, 0 additive, 1 informational)
+  breaking  accounts POST /v1/accounts/otp/     field-added: request.device_id (required)
+  breaking  accounts POST /v1/accounts/otp/     response-removed: 429 no longer documented
+  info      accounts POST /v1/accounts/otp/     summary-changed: Send a one-time login code.
 ```
 
 **Breaking** is an operation or field disappearing, a new required field or
 parameter, a type change, an enum value being removed, or authentication being
-added. **Additive** is anything a current caller can ignore. The baseline is a
-git revision of the spec directory, or a snapshot file written earlier with
-`apiwarden snapshot`. `--fail-on-breaking` exits non-zero, so CI can gate on it.
+added. **Additive** is anything a current caller can ignore. Only the contract
+counts: rewording a description is not logged. Saves less than 15 minutes apart
+fold into one entry, and an edit undone within that window leaves no trace.
 
-The same comparison is on the `/changes` page and the `list_changes` MCP tool,
-so an agent can answer "will this break my client?" directly.
+The log lives in your cache directory (`~/.cache/apiwarden/`), so the spec
+directory is never written to. Set `history` to a path on persistent storage to
+keep it across container rebuilds. On the very first run, if the specs are in a
+git checkout, the recent commits that touched them are read once to seed it.
+
+To compare against one specific version instead — a release tag, a commit, or a
+file written earlier with `apiwarden snapshot` — pass `--since` (or `?since=` on
+the page). `--fail-on-breaking` exits non-zero, so CI can gate on it:
+
+```
+$ apiwarden changes ./api-docs --since v1.4.0 --fail-on-breaking
+```
+
+The same history is in `/changes.json` and the `list_changes` MCP tool, so an
+agent can answer "will this break my client?" directly.
 
 ## In a Django project
 
@@ -156,6 +172,7 @@ specs, or CLI flags.
 | `watch` | `False` | Reload when the spec files change |
 | `token` | `None` | Require a shared token on every request (also `APIWARDEN_TOKEN`) |
 | `sources` | discovered | Explicit `{name: path}` map |
+| `history` | cache dir | File the changelog is kept in |
 
 ## How specs are discovered
 

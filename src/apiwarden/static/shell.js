@@ -20,6 +20,32 @@
     return div.innerHTML;
   }
 
+  /* ---------- changelog times ---------- */
+
+  // The server writes UTC; show the reader's own clock, plus how long ago.
+  function ago(then) {
+    var seconds = Math.max(0, (Date.now() - then) / 1000);
+    var steps = [[60, "second"], [60, "minute"], [24, "hour"], [30, "day"], [12, "month"], [Infinity, "year"]];
+    for (var i = 0; i < steps.length; i++) {
+      if (seconds < steps[i][0]) {
+        var n = Math.floor(seconds);
+        return i === 0 ? "just now" : n + " " + steps[i][1] + (n === 1 ? "" : "s") + " ago";
+      }
+      seconds /= steps[i][0];
+    }
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("time.entry-time, time.since-time"), function (node) {
+    var then = new Date(node.getAttribute("datetime"));
+    if (isNaN(then)) return;
+    node.textContent = then.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+    if (!node.classList.contains("entry-time")) return;
+    var hint = document.createElement("span");
+    hint.className = "entry-ago";
+    hint.textContent = ago(then.getTime());
+    node.appendChild(hint);
+  });
+
   /* ---------- switch between APIs ---------- */
 
   var switcher = document.getElementById("api-switch");

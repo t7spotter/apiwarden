@@ -320,8 +320,17 @@ def test_changes_fails_on_breaking_when_asked(spec_copy, tmp_path, capsys):
     assert "breaking" in capsys.readouterr().out
 
 
-def test_changes_without_a_baseline_explains_itself(spec_copy, capsys):
-    assert main(["changes", str(spec_copy)]) == 1
+def test_changes_without_a_baseline_prints_the_changelog(spec_copy, capsys):
+    assert main(["changes", str(spec_copy)]) == 0
+    assert "no changes recorded yet" in capsys.readouterr().out
+
+    next(spec_copy.rglob("openapi.yaml")).unlink()
+    assert main(["changes", str(spec_copy)]) == 0
+    assert "api-removed" in capsys.readouterr().out
+
+
+def test_failing_on_breaking_still_needs_a_baseline(spec_copy, capsys):
+    assert main(["changes", str(spec_copy), "--fail-on-breaking"]) == 1
     assert "--since" in capsys.readouterr().err
 
 

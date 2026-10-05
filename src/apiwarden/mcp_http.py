@@ -103,11 +103,11 @@ TOOLS: list[dict[str, Any]] = [
     {
         "name": "list_changes",
         "description": (
-            "What changed in the documentation since a baseline, classified as breaking "
-            "or additive. Use it to answer 'will this break my client?' after a backend "
-            "update. The baseline is a git revision of the spec directory (a tag, branch "
-            "or commit) or a snapshot file written earlier; omit it for the previous "
-            "commit that touched the specs."
+            "What changed in the API contract, classified as breaking, additive or "
+            "informational. Use it to answer 'will this break my client?' after a backend "
+            "update. Without arguments it returns the changelog the server records "
+            "automatically, newest first, each entry timestamped. Pass `since` (a git "
+            "revision or a snapshot file) only to compare against one specific baseline."
         ),
         "inputSchema": {
             "type": "object",
@@ -115,7 +115,11 @@ TOOLS: list[dict[str, Any]] = [
                 "since": {
                     "type": "string",
                     "description": "A git revision, or the path to a snapshot .json. Optional.",
-                }
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "How many changelog entries to return when `since` is omitted. Default 20.",
+                },
             },
         },
     },
@@ -236,11 +240,17 @@ def call_tool(name: str, arguments: dict[str, Any], registry: Registry, config: 
     if name == "list_changes":
         from . import diff
 
-        since = str(arguments.get("since") or "") or diff.default_since(registry) or ""
+        since = str(arguments.get("since") or "")
         if not since:
-            return _tool_error(
-                "No baseline to compare against. Pass `since` (a git revision or a "
-                "snapshot file), or run this against a git checkout of the specs."
+            from . import history
+
+            changelog = history.open_for(config)
+            changelog.record(registry)
+            return _tool_json(
+                {
+                    "tracking_since": changelog.tracking_since,
+                    "entries": changelog.entries(limit=int(arguments.get("limit") or 20)),
+                }
             )
         try:
             changes = diff.compare(diff.snapshot_at(registry, since), diff.snapshot(registry))

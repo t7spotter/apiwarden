@@ -25,6 +25,12 @@ from apiwarden.router import Portal
 SAMPLE_ROOT = Path(__file__).resolve().parent / "fixtures" / "sample-api"
 
 
+@pytest.fixture(autouse=True)
+def private_cache(tmp_path_factory, monkeypatch):
+    """Keep the changelog each portal writes out of the real ~/.cache."""
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path_factory.mktemp("cache")))
+
+
 @pytest.fixture
 def sample_root() -> Path:
     return SAMPLE_ROOT
