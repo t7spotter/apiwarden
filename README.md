@@ -35,6 +35,12 @@ and it applies to try-it on every API — it lives in the browser's
 `localStorage`, never on the server, so it survives switching between APIs
 without being re-entered.
 
+Try it can also be pointed somewhere else without touching the specs: type an
+address like `localhost:8000` into the sidebar's server field and press Add. It
+joins the server dropdown, is selected straight away, and is remembered in the
+browser the same way the token is. (`servers` in the config sets what everyone
+sees; this is each reader's own.)
+
 An edit to a spec reaches an open page in about a second, swapped in through
 the renderer rather than by reloading, so nobody loses their place.
 
