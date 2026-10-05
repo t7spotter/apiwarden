@@ -197,6 +197,10 @@ python scripts/vendor_assets.py   # download the renderer bundle
 pip install -e ".[dev]"
 pytest
 
+# See the portal on the sample specs, with live reload and a mock API for Try it.
+# Press Enter in the terminal to edit a spec and watch the page and /changes react.
+python scripts/demo.py
+
 # The browser tests are opt-in; they catch things a server-side test cannot,
 # such as the renderer silently failing to load.
 pip install -e ".[dev,browser]" && playwright install chromium
