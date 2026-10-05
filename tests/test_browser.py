@@ -261,3 +261,55 @@ def test_added_server_reaches_the_try_it_dropdown(page, live):
     page.fill("#server-input", "ftp://nope")
     page.press("#server-input", "Enter")
     assert page.is_visible("#server-error")
+
+
+def test_nav_splitter_resizes_and_remembers(page, live):
+    base, _, portal = live
+    app = _first_app(portal)
+    nav_width = "document.getElementById('docs').shadowRoot.querySelector('.nav-bar').getBoundingClientRect().width"
+
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    start = page.evaluate(nav_width)
+
+    x = page.evaluate("document.querySelector('.nav-splitter').getBoundingClientRect().x + 4")
+    page.mouse.move(x, 300)
+    page.mouse.down()
+    page.mouse.move(x + 100, 300, steps=5)
+    page.mouse.up()
+    page.wait_for_timeout(200)
+    assert page.evaluate(nav_width) == pytest.approx(start + 100, abs=2)
+
+    # Remembered across a real navigation, then reset by a double-click.
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    assert page.evaluate(nav_width) == pytest.approx(start + 100, abs=2)
+    page.dblclick(".nav-splitter")
+    page.wait_for_timeout(200)
+    assert page.evaluate(nav_width) == pytest.approx(start, abs=2)
+
+
+def test_sidebar_controls_line_up(page, live):
+    base, _, portal = live
+    page.goto(f"{base}/{_first_app(portal)}/", wait_until="load")
+    page.wait_for_timeout(2000)
+    page.fill("#auth-token", "abc")
+    page.fill("#server-input", "localhost:9001")
+    page.press("#server-input", "Enter")
+    page.wait_for_timeout(1000)
+
+    def box(selector):
+        return page.evaluate(
+            "s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left, r.right, r.top, r.bottom]; }",
+            selector,
+        )
+
+    token, clear = box("#auth-token"), box("#auth-token-clear")
+    # The clear button sits inside the token field, not floating below it.
+    assert token[2] <= clear[2] and clear[3] <= token[3]
+    # Add matches the input's height and stays on one line.
+    field, add = box("#server-input"), box(".portal-server-btn")
+    assert add[3] - add[2] == pytest.approx(field[3] - field[2], abs=1)
+    # Both × buttons share a right edge.
+    assert box("#server-list button")[1] == pytest.approx(clear[1], abs=2)
+    page.evaluate("localStorage.clear()")
