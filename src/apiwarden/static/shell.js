@@ -380,6 +380,17 @@
 
   loadNews();
 
+  /* ---------- examples under "Compare against a specific version" ---------- */
+
+  Array.prototype.forEach.call(document.querySelectorAll(".since-example"), function (button) {
+    button.addEventListener("click", function () {
+      var field = document.getElementById("since");
+      if (!field) return;
+      field.value = button.getAttribute("data-example");
+      field.focus();
+    });
+  });
+
   /* ---------- global bearer token, applied to every API's Try it panel ----------
 
      Lives in localStorage only — never sent to or read by this server — so it

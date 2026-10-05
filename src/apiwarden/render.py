@@ -503,15 +503,39 @@ def _pills(counts: dict[str, int]) -> str:
     ) + "</span>"
 
 
+# Shown under the Baseline field. Each is something `git show <rev>:<file>` or a
+# snapshot file accepts, which is exactly what snapshot_at() resolves.
+_SINCE_EXAMPLES = (
+    ("v1.4.0", "a release tag"),
+    ("HEAD~5", "five commits ago"),
+    ("main", "a branch, as it is now"),
+    ("3f9c2ab", "a commit, short or full"),
+    ("baseline.json", "a file saved with apiwarden snapshot"),
+)
+
+
 def _since_form(since: str, open_: bool) -> str:
+    chips = "".join(
+        f'<li><button type="button" class="since-example" data-example="{_e(value)}">'
+        f"<code>{_e(value)}</code></button> <span>{_e(note)}</span></li>"
+        for value, note in _SINCE_EXAMPLES
+    )
     return f"""
 <details class="since-details"{" open" if open_ else ""}>
   <summary>Compare against a specific version</summary>
   <form class="since-form" method="get">
     <label for="since">Baseline</label>
-    <input id="since" name="since" value="{_e(since)}" placeholder="a git revision, tag, or snapshot.json">
+    <input id="since" name="since" value="{_e(since)}" placeholder="e.g. v1.4.0 or HEAD~5"
+           autocomplete="off" spellcheck="false">
     <button type="submit">Compare</button>
   </form>
+  <div class="since-help">
+    <p>Name the version you built against and see what has moved since. Anything
+       git can show works — click an example to fill it in:</p>
+    <ul>{chips}</ul>
+    <p>The same thing from a terminal, e.g. to fail CI on a breaking change:
+       <code>apiwarden changes ./api-docs --since v1.4.0 --fail-on-breaking</code></p>
+  </div>
 </details>
 """
 

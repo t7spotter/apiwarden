@@ -372,3 +372,10 @@ def test_changes_since_the_last_visit_are_marked(page, live):
     page.wait_for_timeout(2000)
     assert page.is_hidden(".portal-nav .news-count")
 
+
+def test_since_examples_fill_the_baseline_field(page, live):
+    base, _, _ = live
+    page.goto(f"{base}/changes", wait_until="load")
+    page.click(".since-details > summary")
+    page.click(".since-example[data-example='HEAD~5']")
+    assert page.input_value("#since") == "HEAD~5"
