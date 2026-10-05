@@ -8,3 +8,6 @@ dist/
 venv/
 .coverage
 api-docs/
+
+# Claude Code notes, kept local
+CLAUDE.md
