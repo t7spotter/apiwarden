@@ -153,3 +153,8 @@ def test_an_unknown_coin_still_gets_a_plain_disc():
 def test_the_about_page_shows_a_logo_for_each_coin(portal):
     markup = handle(Request("GET", "/about"), portal).body.decode()
     assert markup.count('class="coin-icon"') == sum(len(w.coins) for w in WALLETS)
+
+
+def test_the_about_page_is_a_centred_column_and_other_pages_are_not(portal):
+    assert 'class="main main-about"' in handle(Request("GET", "/about"), portal).body.decode()
+    assert 'class="main"' in handle(Request("GET", "/changes"), portal).body.decode()
