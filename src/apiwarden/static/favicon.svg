@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="36 36 188 196" width="64" height="64"><defs>
+    <linearGradient id="giv" x1="216" y1="44" x2="132" y2="218" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#3B3FF0"/><stop offset="0.52" stop-color="#2E86FF"/><stop offset="1" stop-color="#27DDF5"/>
+    </linearGradient>
+    <linearGradient id="orb" x1="58" y1="48" x2="114" y2="138" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFD166"/><stop offset="1" stop-color="#FF6B6B"/>
+    </linearGradient>
+    <linearGradient id="low" x1="54" y1="118" x2="124" y2="218" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4A5CF6"/><stop offset="1" stop-color="#2A3BD0"/>
+    </linearGradient>
+    <mask id="gap"><rect width="256" height="256" fill="#fff"/><circle cx="88" cy="92" r="52" fill="#000"/></mask></defs>
+  <g mask="url(#gap)">
+    <path d="M132 66.7A44 44 0 1 1 203.7 117.9Q178.3 161.2 144.9 198.7Q132 216.5 132 194.5Z" fill="url(#giv)"/>
+    <path d="M52.3 117.9Q77.7 161.2 111.1 198.7Q124 216.5 124 194.5L124 100L60 100Z" fill="url(#low)"/>
+  </g>
+  <circle cx="88" cy="92" r="44" fill="url(#orb)"/>
+  <path d="M62 78A30 30 0 0 1 84 58" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="6" stroke-linecap="round"/>
+</svg>
