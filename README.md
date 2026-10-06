@@ -257,6 +257,7 @@ specs, or CLI flags.
 | `token` | `None` | Require a shared token on every request (also `APIWARDEN_TOKEN`) |
 | `sources` | discovered | Explicit `{name: path}` map |
 | `history` | cache dir | File the changelog is kept in |
+| `support` | `True` | The About page (repository link and donation addresses) and the links to it; `False` hides all of it (`--no-support` on the CLI) |
 
 ## How specs are discovered
 
@@ -267,6 +268,16 @@ specs, or CLI flags.
    after its parent directory.
 
 Specs are expected to be self-contained, using local `#/components/...` `$ref`s.
+
+## About and support
+
+`/about` has the repository link and the addresses for anyone who wants to
+support the project, one per network (BNB Smart Chain, Tron, Bitcoin) with a
+copy button, and the footer, the sidebar and the Ctrl+K palette link to it. It
+is optional to read and costs nothing to ignore. If you mount the portal inside
+your own documentation and would rather not show it, set `support = false` in
+`apiwarden.toml` (or `"support": False` in `APIWARDEN`, or pass `--no-support`)
+and the page, its links and the footer are gone.
 
 ## Development
 
