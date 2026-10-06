@@ -30,11 +30,25 @@ spec, and it rescues the two things OpenAPI renderers normally drop — the
 top-level `x-*` blocks where teams record rate limits, TTLs and everything else
 that does not fit the schema, which become tables in the overview.
 
-Every operation has **Copy link** (straight to that operation) and **Copy as
-curl** under its method and path. The curl command is built from the spec, uses
-the server currently selected in the sidebar, and writes credentials as shell
-variables (`$TOKEN`, `$API_KEY`) so nothing secret lands in a chat or a bug
-report by accident. Shift-click to fill in the token you set in the sidebar.
+Press **Ctrl+K** (⌘K on a Mac, or `/`) anywhere for the command palette: type to
+search operations across every API, jump to an API, or run an action — switch
+theme, set the token, open the changes log, open the raw spec or types. Start
+with `>` to see actions only. **Enter** opens the selected row; **Ctrl+Enter**
+on an operation copies its curl command.
+
+Each reader can switch the portal between **Auto** (follows the system),
+**Light** and **Dark** with the toggle in the sidebar or top bar. The choice is
+kept in the browser and wins over the `theme` setting, which then only decides
+what a first-time reader sees.
+
+Every operation has **Copy link** (straight to that operation), **Copy as
+curl** and **History** under its method and path. History opens the changes log
+narrowed to that one operation, with a count of how many entries mention it.
+
+The curl command is built from the spec, uses the server currently selected in
+the sidebar, and writes credentials as shell variables (`$TOKEN`, `$API_KEY`) so
+nothing secret lands in a chat or a bug report by accident. Shift-click to fill
+in the token you set in the sidebar.
 
 The sidebar also holds one Bearer token field, not one per spec. Set it once
 and it applies to try-it on every API — it lives in the browser's
