@@ -497,6 +497,29 @@
     });
   });
 
+  /* ---------- copy buttons (the wallet addresses on the About page) ---------- */
+
+  Array.prototype.forEach.call(document.querySelectorAll("button[data-copy]"), function (button) {
+    var label = button.textContent;
+    button.addEventListener("click", function () {
+      var done = function (text) {
+        button.textContent = text;
+        clearTimeout(button._reset);
+        button._reset = setTimeout(function () {
+          button.textContent = label;
+        }, 1600);
+      };
+      copyText(button.getAttribute("data-copy")).then(
+        function () {
+          done("Copied \u2713");
+        },
+        function () {
+          done("Select and copy");
+        }
+      );
+    });
+  });
+
   /* ---------- command palette: Ctrl/Cmd+K, or "/" ----------
 
      One box for everything: operations across every API (the same ranking as
@@ -574,6 +597,12 @@
       { label: "Open index.json", keywords: "agents machine", run: function () { openFile("index.json"); } },
       { label: "Open llms.txt", keywords: "agents machine", run: function () { openFile("llms.txt"); } }
     );
+    if (config.support) {
+      list.push(
+        { label: "apiwarden on GitHub", keywords: "repository repo source star issues", run: function () { window.open(config.repo, "_blank", "noopener"); } },
+        { label: "Support apiwarden", keywords: "donate donation wallet crypto bitcoin tip", run: function () { location.href = url("about/") + "#support"; } }
+      );
+    }
     return list;
   }
 

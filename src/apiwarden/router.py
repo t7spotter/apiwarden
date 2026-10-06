@@ -79,6 +79,11 @@ def handle(request: Request, portal: Portal) -> Response:
     if path in ("", "index.html"):
         return html(render.landing(config, registry))
 
+    if path in ("about", "about/"):
+        if not config.support:
+            return not_found("the About page is switched off")
+        return html(render.about_page(config, registry))
+
     if path == "health":
         return json_response({"status": "ok", "revision": registry.revision, "specs": len(registry.specs)})
 

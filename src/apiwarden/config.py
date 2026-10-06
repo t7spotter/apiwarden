@@ -18,6 +18,7 @@ _KEYS = (
     "base_path",
     "sources",
     "history",
+    "support",
 )
 
 
@@ -43,6 +44,9 @@ class Config:
     # Where the automatic changelog is kept. Empty means the user's cache
     # directory; point it at persistent storage to keep history across deploys.
     history: str | None = None
+    # The About page, with the repository and ways to support the project, and
+    # the links to it. Turn it off for a portal mounted in someone else's docs.
+    support: bool = True
 
     def __post_init__(self) -> None:
         self.root = Path(self.root).expanduser()

@@ -18,6 +18,7 @@ from . import md
 from .config import Config
 from .index import api_summaries, build_index
 from .loader import Registry, Spec
+from .support import ISSUES_URL, REPO_URL, WALLETS
 
 # The editor greys, so the portal reads like the panel it grew out of. RapiDoc
 # takes its palette as attributes rather than CSS variables, so the same values
@@ -60,6 +61,7 @@ _PAGE = """<!doctype html>
 <body>
 <header class="topbar">{topbar}</header>
 <main class="main">{main}</main>
+{footer}
 <script>window.APIWARDEN = {config};</script>
 <script src="{shell_js}"></script>
 </body>
@@ -78,6 +80,8 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
         "watch": config.watch,
         "revision": registry.revision,
         "theme": config.theme,
+        "support": config.support,
+        "repo": REPO_URL if config.support else "",
     }
     return _PAGE.format(
         title=_e(title),
@@ -86,6 +90,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
         shell_js=_e(config.asset("shell.js")),
         topbar=_topbar(config, registry, active),
         main=main,
+        footer=_footer(config),
         config=json.dumps(payload),
     )
 
@@ -184,6 +189,76 @@ def _servers_control() -> str:
   <p class="portal-server-error" id="server-error" role="alert" hidden></p>
 </div>
 """
+
+
+def _support_links(config: Config) -> str:
+    """GitHub and the support page, for the sidebar. Empty when `support` is off."""
+    if not config.support:
+        return ""
+    return (
+        f'<a href="{_e(REPO_URL)}" target="_blank" rel="noopener">GitHub</a>'
+        f'<a href="{_e(config.url("about/"))}#support">\u2665 Support</a>'
+    )
+
+
+def _footer(config: Config) -> str:
+    from . import __version__
+
+    if not config.support:
+        return ""
+    return f"""
+<footer class="site-footer">
+  <span>apiwarden {_e(__version__)}</span>
+  <a href="{_e(REPO_URL)}" target="_blank" rel="noopener">GitHub</a>
+  <a href="{_e(config.url("about/"))}#support">\u2665 Support the project</a>
+</footer>
+"""
+
+
+def about_page(config: Config, registry: Registry) -> str:
+    """The repository, and the wallets for anyone who wants to chip in."""
+    from . import __version__
+
+    cards = "".join(
+        f"""
+  <div class="wallet">
+    <div class="wallet-head">
+      <h3>{_e(wallet.network)}</h3>
+      <span class="wallet-coins">{"".join(f'<span class="pill">{_e(coin)}</span>' for coin in wallet.coins)}</span>
+    </div>
+    <div class="wallet-row">
+      <code class="wallet-address" id="wallet-{index}">{_e(wallet.address)}</code>
+      <button type="button" class="wallet-copy" data-copy="{_e(wallet.address)}"
+              aria-label="Copy the {_e(wallet.network)} address">Copy</button>
+    </div>
+  </div>"""
+        for index, wallet in enumerate(WALLETS)
+    )
+
+    main = f"""
+<div class="page-head">
+  <h1>apiwarden</h1>
+  <p>Live OpenAPI documentation for people and for AI agents. Version {_e(__version__)}, MIT licensed.</p>
+  <div class="meta-row">
+    <a class="button" href="{_e(REPO_URL)}" target="_blank" rel="noopener">Star it on GitHub</a>
+    <a href="{_e(ISSUES_URL)}" target="_blank" rel="noopener">Report an issue</a>
+    <code>pip install apiwarden</code>
+  </div>
+  <p class="repo-url">Repository: <a href="{_e(REPO_URL)}" target="_blank" rel="noopener">{_e(REPO_URL)}</a></p>
+</div>
+
+<section class="support" id="support">
+  <h2>Support the project</h2>
+  <p>apiwarden is free and open source. If it saves your team time, a donation helps keep
+     it maintained. It is entirely optional — thank you either way.</p>
+  <div class="wallets">{cards}
+  </div>
+  <p class="wallet-warn"><strong>Check the network before you send.</strong> The same coin exists on
+     several networks, and funds sent on the wrong one cannot be recovered. Each address above accepts
+     only the coins and the network shown with it.</p>
+</section>
+"""
+    return page(config, registry, f"About · {config.title}", main, active="__about__")
 
 
 # ---------------------------------------------------------------- landing
@@ -331,6 +406,8 @@ def api_page(config: Config, registry: Registry, spec: Spec) -> str:
         "app": spec.name,
         "spec": config.url(f"display/{spec.name}.json"),
         "theme": config.theme,
+        "support": config.support,
+        "repo": REPO_URL if config.support else "",
     }
 
     return _RAPIDOC.format(
@@ -368,6 +445,7 @@ def _portal_nav(config: Config, registry: Registry, active: str) -> str:
   <a href="{_e(config.url("index.json"))}">index.json</a>
   <a href="{_e(config.url("llms.txt"))}">llms.txt</a>
   <a href="{_e(config.url("types/" + active + ".ts"))}" title="TypeScript types for this API">types.ts</a>
+  {_support_links(config)}
   {_theme_toggle()}
 </div>
 <p class="portal-news" id="portal-news" hidden>

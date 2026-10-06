@@ -696,3 +696,76 @@ body.nav-resizing rapi-doc { pointer-events: none; }
   color: var(--muted);
 }
 .palette-status { color: var(--accent); }
+
+/* ---------- footer, About and support ---------- */
+
+.site-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  padding: 18px 30px 28px;
+  border-top: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.site-footer a { color: var(--muted); }
+.site-footer a:hover { color: var(--accent); }
+
+.page-head .meta-row { gap: 14px; }
+.button {
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 600;
+}
+.button:hover { text-decoration: none; opacity: 0.9; }
+.repo-url { margin-top: 10px; word-break: break-all; }
+
+.support { margin-top: 34px; }
+.support h2 { margin: 0 0 6px; font-size: 18px; }
+.support > p { color: var(--muted); max-width: 62ch; }
+.wallets { display: grid; gap: 12px; margin: 18px 0; }
+.wallet {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.wallet-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 8px; }
+.wallet-head h3 { margin: 0; font-size: 14px; }
+.wallet-coins { display: flex; gap: 6px; }
+.wallet-row { display: flex; align-items: center; gap: 10px; }
+.wallet-address {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 13px;
+  word-break: break-all;
+  user-select: all;
+}
+.wallet-copy {
+  flex: none;
+  min-width: 108px;
+  padding: 6px 12px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.wallet-copy:hover { background: var(--accent-soft); }
+.wallet-warn {
+  padding: 10px 12px;
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius);
+  background: var(--warn-bg);
+  color: var(--text);
+  font-size: 13px;
+  max-width: 70ch;
+}

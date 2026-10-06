@@ -552,3 +552,27 @@ def test_command_palette_jumps_to_another_api(page, live):
     page.wait_for_timeout(600)
     page.locator(".palette-item").first.click()
     page.wait_for_url(f"**/{names[-1]}/**")
+
+
+def test_about_page_copies_a_wallet_address(page, live):
+    from apiwarden.support import WALLETS
+
+    base, _, _ = live
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base)
+    page.goto(f"{base}/about/", wait_until="load")
+
+    buttons = page.locator("button.wallet-copy")
+    assert buttons.count() == len(WALLETS)
+    for index, wallet in enumerate(WALLETS):
+        buttons.nth(index).click()
+        page.wait_for_timeout(200)
+        assert page.evaluate("navigator.clipboard.readText()") == wallet.address
+        assert "Copied" in buttons.nth(index).inner_text()
+
+    # And the palette can get there from anywhere.
+    page.goto(f"{base}/changes", wait_until="load")
+    page.keyboard.press("Control+k")
+    page.keyboard.type("donate")
+    page.wait_for_timeout(500)
+    page.keyboard.press("Enter")
+    page.wait_for_url("**/about/#support")
