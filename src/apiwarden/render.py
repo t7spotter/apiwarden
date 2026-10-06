@@ -60,7 +60,7 @@ _PAGE = """<!doctype html>
 </head>
 <body>
 <header class="topbar">{topbar}</header>
-<main class="main">{main}</main>
+<main class="main{main_class}">{main}</main>
 {footer}
 <script>window.APIWARDEN = {config};</script>
 <script src="{shell_js}"></script>
@@ -73,7 +73,7 @@ def _e(value: Any) -> str:
     return html.escape("" if value is None else str(value), quote=True)
 
 
-def page(config: Config, registry: Registry, title: str, main: str, active: str = "") -> str:
+def page(config: Config, registry: Registry, title: str, main: str, active: str = "", main_class: str = "") -> str:
     """The frame for pages RapiDoc does not render: the landing and changes."""
     payload = {
         "base": config.base_path,
@@ -90,6 +90,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
         shell_js=_e(config.asset("shell.js")),
         topbar=_topbar(config, registry, active),
         main=main,
+        main_class=f" {main_class}" if main_class else "",
         footer=_footer(config),
         config=json.dumps(payload),
     )
@@ -293,7 +294,7 @@ def about_page(config: Config, registry: Registry) -> str:
   </section>
 </div>
 """
-    return page(config, registry, f"About \u00b7 {config.title}", main, active="__about__")
+    return page(config, registry, f"About \u00b7 {config.title}", main, active="__about__", main_class="main-about")
 
 
 # ---------------------------------------------------------------- landing
