@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/logo-lockup-dark.svg">
+    <img src="assets/logo-lockup.svg" alt="APIwarden" height="110">
+  </picture>
+</p>
+
 # apiwarden
 
 Point it at a directory of OpenAPI specs and it serves them as live
