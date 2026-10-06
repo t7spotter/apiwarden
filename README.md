@@ -264,7 +264,7 @@ specs, or CLI flags.
 | `token` | `None` | Require a shared token on every request (also `APIWARDEN_TOKEN`) |
 | `sources` | discovered | Explicit `{name: path}` map |
 | `history` | cache dir | File the changelog is kept in |
-| `support` | `True` | The About page (repository link and donation addresses) and the links to it; `False` hides all of it (`--no-support` on the CLI) |
+| `support` | `True` | APIwarden's own branding: the mark beside the title, the "Powered by" footer, the favicon, and the About page with the repository link and donation addresses. `False` removes all of it (`--no-support` on the CLI) |
 
 ## How specs are discovered
 
@@ -284,7 +284,8 @@ copy button, and the footer, the sidebar and the Ctrl+K palette link to it. It
 is optional to read and costs nothing to ignore. If you mount the portal inside
 your own documentation and would rather not show it, set `support = false` in
 `apiwarden.toml` (or `"support": False` in `APIWARDEN`, or pass `--no-support`)
-and the page, its links and the footer are gone.
+and the page, its links, the footer, the favicon and the logo beside the title
+are all gone, leaving a portal with only your own title on it.
 
 ## Development
 
