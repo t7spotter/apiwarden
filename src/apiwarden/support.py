@@ -42,3 +42,46 @@ WALLETS = (
         address="bc1q8qw8048uqt5z39xy2u98epwl2yhc5tz9nmkeqy",
     ),
 )
+
+
+# Brand colours for the coin chips and each card's accent edge. Presentation
+# only: nothing about an address depends on them.
+COIN_COLORS = {
+    "BNB": "#F0B90B",
+    "USDT": "#26A17B",
+    "TRX": "#EB0029",
+    "BTC": "#F7931A",
+}
+
+
+# Minimal logo marks for the coin chips: the coin's colour as a disc with a plain
+# glyph on it, drawn here (24x24) rather than shipped as brand artwork. A coin
+# without one falls back to a plain disc.
+_GLYPHS = {
+    "BTC": (
+        '<path d="M9.4 7.4h3.3a2.05 2.05 0 0 1 0 4.1H9.4m0 0h3.9a2.3 2.3 0 0 1 0 4.6H9.4M9.4 7.4v8.7'
+        'M11.2 5.9v1.5M13.4 5.9v1.5M11.2 16.1v1.5M13.4 16.1v1.5" fill="none" stroke="#fff" '
+        'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
+    ),
+    "USDT": (
+        '<path d="M7 7.6h10M12 7.6v9.2" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/>'
+        '<ellipse cx="12" cy="11.4" rx="5.4" ry="1.6" fill="none" stroke="#fff" stroke-width="1.3"/>'
+    ),
+    "TRX": (
+        '<path d="M7 7.8 17 9.4l-5 8.8zM7 7.8l5.4 4.6M17 9.4l-4.6 3" fill="none" stroke="#fff" '
+        'stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
+    ),
+    "BNB": (
+        '<path d="M12 5.4l1.5 1.5L12 8.4 10.5 6.9zM12 15.6l1.5 1.5-1.5 1.5-1.5-1.5zM5.4 12l1.5-1.5L8.4 12 '
+        '6.9 13.5zM15.6 12l1.5-1.5 1.5 1.5-1.5 1.5zM12 9.9l2.1 2.1-2.1 2.1L9.9 12z" fill="#1d1d1f"/>'
+    ),
+}
+
+
+def coin_icon(coin: str, size: int = 18) -> str:
+    """An inline SVG mark for a coin. Static markup: nothing in it is user input."""
+    colour = COIN_COLORS.get(coin, "#8a8f98")
+    return (
+        f'<svg class="coin-icon" viewBox="0 0 24 24" width="{size}" height="{size}" aria-hidden="true" focusable="false">'
+        f'<circle cx="12" cy="12" r="12" fill="{colour}"/>{_GLYPHS.get(coin, "")}</svg>'
+    )

@@ -18,7 +18,7 @@ from . import md
 from .config import Config
 from .index import api_summaries, build_index
 from .loader import Registry, Spec
-from .support import ISSUES_URL, REPO_URL, WALLETS
+from .support import COIN_COLORS, ISSUES_URL, REPO_URL, WALLETS, coin_icon
 
 # The editor greys, so the portal reads like the panel it grew out of. RapiDoc
 # takes its palette as attributes rather than CSS variables, so the same values
@@ -215,50 +215,85 @@ def _footer(config: Config) -> str:
 """
 
 
+_SHIELD = (
+    '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" '
+    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    '<path d="M12 3 4.5 6v5.5c0 4.5 3.1 8.2 7.5 9.5 4.4-1.3 7.5-5 7.5-9.5V6L12 3z"/>'
+    '<path d="m8.8 12.2 2.3 2.3 4.2-4.6"/></svg>'
+)
+
+
+def _wallet_card(wallet) -> str:
+    # "BNB Smart Chain (BEP-20)" -> the network, and the token standard as a chip.
+    name, _, rest = wallet.network.partition(" (")
+    standard = rest.rstrip(")")
+    accent = COIN_COLORS.get(wallet.coins[0], "var(--muted)")
+    coins = "".join(
+        f'<span class="coin">{coin_icon(coin)}{_e(coin)}</span>'
+        for coin in wallet.coins
+    )
+    only = " or ".join(wallet.coins)
+    return f"""
+    <article class="wallet" style="--net:{accent}">
+      <header class="wallet-head">
+        <h3>{_e(name)}</h3>
+        {f'<span class="wallet-std">{_e(standard)}</span>' if standard else ""}
+      </header>
+      <div class="wallet-coins"><span class="wallet-label">Accepts</span>{coins}</div>
+      <code class="wallet-address">{_e(wallet.address)}</code>
+      <button type="button" class="wallet-copy" data-copy="{_e(wallet.address)}"
+              aria-label="Copy the {_e(wallet.network)} address">Copy address</button>
+      <p class="wallet-note">Send only {_e(only)} on {_e(wallet.network)}.</p>
+    </article>"""
+
+
 def about_page(config: Config, registry: Registry) -> str:
     """The repository, and the wallets for anyone who wants to chip in."""
     from . import __version__
 
-    cards = "".join(
-        f"""
-  <div class="wallet">
-    <div class="wallet-head">
-      <h3>{_e(wallet.network)}</h3>
-      <span class="wallet-coins">{"".join(f'<span class="pill">{_e(coin)}</span>' for coin in wallet.coins)}</span>
-    </div>
-    <div class="wallet-row">
-      <code class="wallet-address" id="wallet-{index}">{_e(wallet.address)}</code>
-      <button type="button" class="wallet-copy" data-copy="{_e(wallet.address)}"
-              aria-label="Copy the {_e(wallet.network)} address">Copy</button>
-    </div>
-  </div>"""
-        for index, wallet in enumerate(WALLETS)
-    )
-
+    cards = "".join(_wallet_card(wallet) for wallet in WALLETS)
     main = f"""
-<div class="page-head">
-  <h1>apiwarden</h1>
-  <p>Live OpenAPI documentation for people and for AI agents. Version {_e(__version__)}, MIT licensed.</p>
-  <div class="meta-row">
-    <a class="button" href="{_e(REPO_URL)}" target="_blank" rel="noopener">Star it on GitHub</a>
-    <a href="{_e(ISSUES_URL)}" target="_blank" rel="noopener">Report an issue</a>
-    <code>pip install apiwarden</code>
-  </div>
-  <p class="repo-url">Repository: <a href="{_e(REPO_URL)}" target="_blank" rel="noopener">{_e(REPO_URL)}</a></p>
-</div>
+<div class="about">
+  <section class="hero">
+    <div class="hero-mark">{_SHIELD}</div>
+    <h1>apiwarden</h1>
+    <p class="hero-tagline">Live OpenAPI documentation for people and for AI agents.</p>
+    <div class="hero-badges">
+      <span class="pill">v{_e(__version__)}</span><span class="pill">MIT licensed</span><span class="pill">Python 3.11+</span>
+    </div>
+    <div class="hero-actions">
+      <a class="button" href="{_e(REPO_URL)}" target="_blank" rel="noopener">\u2605 Star on GitHub</a>
+      <a class="button button-quiet" href="{_e(ISSUES_URL)}" target="_blank" rel="noopener">Report an issue</a>
+    </div>
+    <div class="install">
+      <span class="install-prompt" aria-hidden="true">$</span><code>pip install apiwarden</code>
+      <button type="button" class="install-copy" data-copy="pip install apiwarden"
+              aria-label="Copy the install command">Copy</button>
+    </div>
+    <p class="repo-url">Source: <a href="{_e(REPO_URL)}" target="_blank" rel="noopener">{_e(REPO_URL)}</a></p>
+  </section>
 
-<section class="support" id="support">
-  <h2>Support the project</h2>
-  <p>apiwarden is free and open source. If it saves your team time, a donation helps keep
-     it maintained. It is entirely optional — thank you either way.</p>
-  <div class="wallets">{cards}
-  </div>
-  <p class="wallet-warn"><strong>Check the network before you send.</strong> The same coin exists on
-     several networks, and funds sent on the wrong one cannot be recovered. Each address above accepts
-     only the coins and the network shown with it.</p>
-</section>
+  <section class="support" id="support">
+    <div class="support-head">
+      <span class="support-heart" aria-hidden="true">\u2665</span>
+      <div>
+        <h2>Support the project</h2>
+        <p>apiwarden is free and open source. If it saves your team time, a donation helps keep it
+           maintained and growing. It is entirely optional \u2014 thank you either way.</p>
+      </div>
+    </div>
+    <div class="wallets">{cards}
+    </div>
+    <div class="wallet-warn" role="note">
+      <span class="warn-icon" aria-hidden="true">!</span>
+      <p><strong>Check the network before you send.</strong> The same coin exists on several networks, and
+         funds sent on the wrong one cannot be recovered. Each address accepts only the coins and the
+         network shown on its card.</p>
+    </div>
+  </section>
+</div>
 """
-    return page(config, registry, f"About · {config.title}", main, active="__about__")
+    return page(config, registry, f"About \u00b7 {config.title}", main, active="__about__")
 
 
 # ---------------------------------------------------------------- landing

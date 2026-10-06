@@ -131,3 +131,25 @@ def test_static_build_includes_the_about_page_unless_off(config, tmp_path):
     quiet = Config(root=config.root, support=False)
     build_static(quiet, tmp_path / "off")
     assert not (tmp_path / "off" / "about").exists()
+
+
+def test_every_coin_has_a_colour_and_a_logo_mark():
+    from apiwarden.support import _GLYPHS, COIN_COLORS, coin_icon
+
+    for wallet in WALLETS:
+        for coin in wallet.coins:
+            assert coin in COIN_COLORS, f"{coin} has no colour; its chip would fall back to grey"
+            assert coin in _GLYPHS, f"{coin} has no logo mark; its chip would show a plain disc"
+            assert COIN_COLORS[coin] in coin_icon(coin)
+
+
+def test_an_unknown_coin_still_gets_a_plain_disc():
+    from apiwarden.support import coin_icon
+
+    icon = coin_icon("XYZ")
+    assert icon.startswith("<svg") and "<circle" in icon and "<path" not in icon
+
+
+def test_the_about_page_shows_a_logo_for_each_coin(portal):
+    markup = handle(Request("GET", "/about"), portal).body.decode()
+    assert markup.count('class="coin-icon"') == sum(len(w.coins) for w in WALLETS)
