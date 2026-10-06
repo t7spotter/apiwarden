@@ -56,7 +56,7 @@ _PAGE = """<!doctype html>
 <title>{title}</title>
 {boot}
 <link rel="stylesheet" href="{shell_css}">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>&#128737;</text></svg>">
+<link rel="icon" type="image/svg+xml" href="{favicon}">
 </head>
 <body>
 <header class="topbar">{topbar}</header>
@@ -86,6 +86,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
     return _PAGE.format(
         title=_e(title),
         boot=_theme_boot(config),
+        favicon=_e(config.asset("favicon.svg")),
         shell_css=_e(config.asset("shell.css")),
         shell_js=_e(config.asset("shell.js")),
         topbar=_topbar(config, registry, active),
@@ -216,14 +217,6 @@ def _footer(config: Config) -> str:
 """
 
 
-_SHIELD = (
-    '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.7" '
-    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
-    '<path d="M12 3 4.5 6v5.5c0 4.5 3.1 8.2 7.5 9.5 4.4-1.3 7.5-5 7.5-9.5V6L12 3z"/>'
-    '<path d="m8.8 12.2 2.3 2.3 4.2-4.6"/></svg>'
-)
-
-
 def _wallet_card(wallet) -> str:
     # "BNB Smart Chain (BEP-20)" -> the network, and the token standard as a chip.
     name, _, rest = wallet.network.partition(" (")
@@ -256,8 +249,8 @@ def about_page(config: Config, registry: Registry) -> str:
     main = f"""
 <div class="about">
   <section class="hero">
-    <div class="hero-mark">{_SHIELD}</div>
-    <h1>apiwarden</h1>
+    <img class="hero-logo" src="{_e(config.asset("logo.svg"))}" width="136" height="136" alt="">
+    <h1><span class="brand-api">API</span>warden</h1>
     <p class="hero-tagline">Live OpenAPI documentation for people and for AI agents.</p>
     <div class="hero-badges">
       <span class="pill">v{_e(__version__)}</span><span class="pill">MIT licensed</span><span class="pill">Python 3.11+</span>
@@ -375,7 +368,7 @@ _RAPIDOC = """<!doctype html>
      and is styled by this document, not by the shadow root. -->
 <link rel="stylesheet" href="{shell_css}">
 <link rel="stylesheet" href="{extra_css}">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='13' font-size='14'>&#128737;</text></svg>">
+<link rel="icon" type="image/svg+xml" href="{favicon}">
 <style>
   html, body {{ margin: 0; height: 100%; background: {bg}; }}
   rapi-doc {{ width: 100%; height: 100%; }}
@@ -449,6 +442,7 @@ def api_page(config: Config, registry: Registry, spec: Spec) -> str:
     return _RAPIDOC.format(
         title=_e(f"{spec.title} · {config.title}"),
         boot=_theme_boot(config),
+        favicon=_e(config.asset("favicon.svg")),
         shell_css=_e(config.asset("shell.css")),
         shell_js=_e(config.asset("shell.js")),
         extra_css=_e(config.asset("rapidoc-extra.css")),
