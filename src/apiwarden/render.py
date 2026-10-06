@@ -56,7 +56,7 @@ _PAGE = """<!doctype html>
 <title>{title}</title>
 {boot}
 <link rel="stylesheet" href="{shell_css}">
-<link rel="icon" type="image/svg+xml" href="{favicon}">
+{favicon}
 </head>
 <body>
 <header class="topbar">{topbar}</header>
@@ -86,7 +86,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
     return _PAGE.format(
         title=_e(title),
         boot=_theme_boot(config),
-        favicon=_e(config.asset("favicon.svg")),
+        favicon=_favicon_link(config),
         shell_css=_e(config.asset("shell.css")),
         shell_js=_e(config.asset("shell.js")),
         topbar=_topbar(config, registry, active),
@@ -106,7 +106,7 @@ def _topbar(config: Config, registry: Registry, active: str) -> str:
     changes = "active" if active == "__changes__" else ""
 
     return f"""
-<a class="portal-title" href="{_e(config.url("/"))}">{_e(config.title)}</a>
+<a class="portal-title" href="{_e(config.url("/"))}">{_brand_mark(config, 22)}<span>{_e(config.title)}</span></a>
 <select class="portal-switch" id="api-switch" aria-label="Choose an API">
   <option value="">Choose an API…</option>{options}
 </select>
@@ -193,6 +193,23 @@ def _servers_control() -> str:
 """
 
 
+def _brand_mark(config: Config, size: int, full: bool = False) -> str:
+    """The APIwarden mark as a small decorative image; nothing when `support` is off.
+
+    The simple mark (no braces or sparkles) for small sizes, the full one for large.
+    """
+    if not config.support:
+        return ""
+    name = "logo.svg" if full else "favicon.svg"
+    return f'<img class="brand-mark" src="{_e(config.asset(name))}" width="{size}" height="{size}" alt="">'
+
+
+def _favicon_link(config: Config) -> str:
+    if not config.support:
+        return ""
+    return f'<link rel="icon" type="image/svg+xml" href="{_e(config.asset("favicon.svg"))}">'
+
+
 def _support_links(config: Config) -> str:
     """GitHub and the support page, for the sidebar. Empty when `support` is off."""
     if not config.support:
@@ -210,7 +227,7 @@ def _footer(config: Config) -> str:
         return ""
     return f"""
 <footer class="site-footer">
-  <span>apiwarden {_e(__version__)}</span>
+  <span class="footer-brand">{_brand_mark(config, 16)}Powered by APIwarden {_e(__version__)}</span>
   <a href="{_e(REPO_URL)}" target="_blank" rel="noopener">GitHub</a>
   <a href="{_e(config.url("about/"))}#support">\u2665 Support the project</a>
 </footer>
@@ -318,9 +335,12 @@ def landing(config: Config, registry: Registry) -> str:
     )
 
     main = f"""
-<div class="page-head">
-  <h1>{_e(config.title)}</h1>
-  <p>{len(apis)} APIs · {total} operations · always current, straight from the specs.</p>
+<div class="page-head{" page-head-brand" if config.support else ""}">
+  {_brand_mark(config, 92, full=True)}
+  <div>
+    <h1>{_e(config.title)}</h1>
+    <p>{len(apis)} APIs · {total} operations · always current, straight from the specs.</p>
+  </div>
 </div>
 {errors}{broken}
 <div class="cards">{"".join(cards)}</div>
@@ -368,7 +388,7 @@ _RAPIDOC = """<!doctype html>
      and is styled by this document, not by the shadow root. -->
 <link rel="stylesheet" href="{shell_css}">
 <link rel="stylesheet" href="{extra_css}">
-<link rel="icon" type="image/svg+xml" href="{favicon}">
+{favicon}
 <style>
   html, body {{ margin: 0; height: 100%; background: {bg}; }}
   rapi-doc {{ width: 100%; height: 100%; }}
@@ -442,7 +462,7 @@ def api_page(config: Config, registry: Registry, spec: Spec) -> str:
     return _RAPIDOC.format(
         title=_e(f"{spec.title} · {config.title}"),
         boot=_theme_boot(config),
-        favicon=_e(config.asset("favicon.svg")),
+        favicon=_favicon_link(config),
         shell_css=_e(config.asset("shell.css")),
         shell_js=_e(config.asset("shell.js")),
         extra_css=_e(config.asset("rapidoc-extra.css")),
@@ -463,7 +483,7 @@ def _portal_nav(config: Config, registry: Registry, active: str) -> str:
     )
 
     return f"""
-<a class="portal-title" href="{_e(config.url("/"))}">{_e(config.title)}</a>
+<a class="portal-title" href="{_e(config.url("/"))}">{_brand_mark(config, 22)}<span>{_e(config.title)}</span></a>
 <select class="portal-switch" id="api-switch" aria-label="Choose an API">{options}</select>
 <input class="portal-search" id="search-input" type="search" placeholder="Search all APIs…"
        autocomplete="off" aria-label="Search every API">

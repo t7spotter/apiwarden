@@ -108,6 +108,9 @@ h1, h2, h3, h4 { line-height: 1.3; }
 }
 
 .portal-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 650;
   font-size: 13.5px;
   color: var(--text);
@@ -910,3 +913,10 @@ body.nav-resizing rapi-doc { pointer-events: none; }
   .site-footer { padding: 16px 16px 24px; }
   .hero { padding: 26px 18px 22px; }
 }
+
+/* ---------- the mark beside titles and in the footer ---------- */
+
+.brand-mark { display: block; flex: none; }
+.page-head-brand { display: flex; align-items: center; gap: 16px; }
+.page-head-brand h1 { margin: 0 0 2px; }
+.footer-brand { display: inline-flex; align-items: center; gap: 7px; }
