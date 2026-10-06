@@ -52,3 +52,30 @@ def test_the_about_hero_carries_the_logo_and_the_name(portal):
     markup = handle(Request("GET", "/about"), portal).body.decode()
     assert 'class="hero-logo"' in markup and "/_static/logo.svg" in markup
     assert '<span class="brand-api">API</span>warden' in markup
+
+
+def test_the_mark_sits_beside_the_title_on_every_page(portal, registry):
+    for path in ("/", "/changes", "/about", f"/{registry.names()[0]}/"):
+        markup = handle(Request("GET", path), portal).body.decode()
+        assert 'class="portal-title"' in markup, path
+        title = markup[markup.index('class="portal-title"') :].split("</a>", 1)[0]
+        assert 'class="brand-mark"' in title and "/_static/favicon.svg" in title, path
+
+
+def test_the_landing_header_and_footer_carry_the_brand(portal):
+    markup = handle(Request("GET", "/"), portal).body.decode()
+    assert 'class="page-head page-head-brand"' in markup
+    assert "/_static/logo.svg" in markup  # the full mark beside the title
+    assert "Powered by APIwarden" in markup
+
+
+def test_an_unbranded_portal_has_no_mark_favicon_or_credit(registry, sample_root):
+    from apiwarden.config import Config
+    from apiwarden.router import Portal
+
+    quiet = Portal(Config(root=sample_root, support=False), registry)
+    for path in ("/", "/changes", f"/{registry.names()[0]}/"):
+        markup = handle(Request("GET", path), quiet).body.decode()
+        assert "brand-mark" not in markup, path
+        assert 'rel="icon"' not in markup, path
+        assert "Powered by" not in markup and "logo.svg" not in markup, path
