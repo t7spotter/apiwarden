@@ -67,15 +67,3 @@ def test_the_landing_header_and_footer_carry_the_brand(portal):
     assert 'class="page-head page-head-brand"' in markup
     assert "/_static/logo.svg" in markup  # the full mark beside the title
     assert "Powered by APIwarden" in markup
-
-
-def test_an_unbranded_portal_has_no_mark_favicon_or_credit(registry, sample_root):
-    from apiwarden.config import Config
-    from apiwarden.router import Portal
-
-    quiet = Portal(Config(root=sample_root, support=False), registry)
-    for path in ("/", "/changes", f"/{registry.names()[0]}/"):
-        markup = handle(Request("GET", path), quiet).body.decode()
-        assert "brand-mark" not in markup, path
-        assert 'rel="icon"' not in markup, path
-        assert "Powered by" not in markup and "logo.svg" not in markup, path

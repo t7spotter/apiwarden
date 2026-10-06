@@ -156,8 +156,6 @@ def _common(parser: argparse.ArgumentParser, *, positional: bool = True) -> None
     if positional:
         parser.add_argument("root", nargs="?", default=DEFAULT_ROOT, help="directory holding the specs")
     parser.add_argument("--title", default=None, help="portal title")
-    parser.add_argument("--no-support", action="store_true",
-                        help="hide the About page and the links to it")
     parser.add_argument("--server", action="append", dest="servers", default=None,
                         help="override the API base URL offered in try-it (repeatable)")
 
@@ -175,8 +173,6 @@ def _config(root: Path, args) -> Config:
         config.servers = list(args.servers)
     if getattr(args, "base_path", None):
         config.base_path = args.base_path
-    if getattr(args, "no_support", False):
-        config.support = False
     config.token = getattr(args, "token", None) or config.token or env_token()
     config.watch = not getattr(args, "no_watch", False)
     return config

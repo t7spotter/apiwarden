@@ -39,8 +39,7 @@ def build_static(config: Config, output: Path) -> int:
     written += _write(output / "revision.json", _json(agent.revision_payload(registry)))
     written += _write(output / "llms.txt", agent.llms_txt(registry, config))
     written += _write(output / "llms-full.txt", agent.llms_full_txt(registry, config))
-    if config.support:
-        written += _write(output / "about" / "index.html", render.about_page(config, registry))
+    written += _write(output / "about" / "index.html", render.about_page(config, registry))
     written += _write(output / "health.json", _json({"status": "ok", "revision": registry.revision}))
 
     for name in registry.names():

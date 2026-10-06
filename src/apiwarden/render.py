@@ -80,8 +80,7 @@ def page(config: Config, registry: Registry, title: str, main: str, active: str 
         "watch": config.watch,
         "revision": registry.revision,
         "theme": config.theme,
-        "support": config.support,
-        "repo": REPO_URL if config.support else "",
+        "repo": REPO_URL,
     }
     return _PAGE.format(
         title=_e(title),
@@ -194,26 +193,20 @@ def _servers_control() -> str:
 
 
 def _brand_mark(config: Config, size: int, full: bool = False) -> str:
-    """The APIwarden mark as a small decorative image; nothing when `support` is off.
+    """The APIwarden mark as a small decorative image.
 
     The simple mark (no braces or sparkles) for small sizes, the full one for large.
     """
-    if not config.support:
-        return ""
     name = "logo.svg" if full else "favicon.svg"
     return f'<img class="brand-mark" src="{_e(config.asset(name))}" width="{size}" height="{size}" alt="">'
 
 
 def _favicon_link(config: Config) -> str:
-    if not config.support:
-        return ""
     return f'<link rel="icon" type="image/svg+xml" href="{_e(config.asset("favicon.svg"))}">'
 
 
 def _support_links(config: Config) -> str:
-    """GitHub and the support page, for the sidebar. Empty when `support` is off."""
-    if not config.support:
-        return ""
+    """GitHub and the support page, for the sidebar."""
     return (
         f'<a href="{_e(REPO_URL)}" target="_blank" rel="noopener">GitHub</a>'
         f'<a href="{_e(config.url("about/"))}#support">\u2665 Support</a>'
@@ -223,8 +216,6 @@ def _support_links(config: Config) -> str:
 def _footer(config: Config) -> str:
     from . import __version__
 
-    if not config.support:
-        return ""
     return f"""
 <footer class="site-footer">
   <span class="footer-brand">{_brand_mark(config, 16)}Powered by APIwarden {_e(__version__)}</span>
@@ -335,7 +326,7 @@ def landing(config: Config, registry: Registry) -> str:
     )
 
     main = f"""
-<div class="page-head{" page-head-brand" if config.support else ""}">
+<div class="page-head page-head-brand">
   {_brand_mark(config, 92, full=True)}
   <div>
     <h1>{_e(config.title)}</h1>
@@ -455,8 +446,7 @@ def api_page(config: Config, registry: Registry, spec: Spec) -> str:
         "app": spec.name,
         "spec": config.url(f"display/{spec.name}.json"),
         "theme": config.theme,
-        "support": config.support,
-        "repo": REPO_URL if config.support else "",
+        "repo": REPO_URL,
     }
 
     return _RAPIDOC.format(

@@ -597,12 +597,10 @@
       { label: "Open index.json", keywords: "agents machine", run: function () { openFile("index.json"); } },
       { label: "Open llms.txt", keywords: "agents machine", run: function () { openFile("llms.txt"); } }
     );
-    if (config.support) {
-      list.push(
-        { label: "apiwarden on GitHub", keywords: "repository repo source star issues", run: function () { window.open(config.repo, "_blank", "noopener"); } },
-        { label: "Support apiwarden", keywords: "donate donation wallet crypto bitcoin tip", run: function () { location.href = url("about/") + "#support"; } }
-      );
-    }
+    list.push(
+      { label: "apiwarden on GitHub", keywords: "repository repo source star issues", run: function () { window.open(config.repo, "_blank", "noopener"); } },
+      { label: "Support apiwarden", keywords: "donate donation wallet crypto bitcoin tip", run: function () { location.href = url("about/") + "#support"; } }
+    );
     return list;
   }
 

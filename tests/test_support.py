@@ -7,9 +7,8 @@ import pytest
 
 from apiwarden.build import build_static
 from apiwarden.cli import main
-from apiwarden.config import Config, from_dict
 from apiwarden.http import Request
-from apiwarden.router import Portal, handle
+from apiwarden.router import handle
 from apiwarden.support import ISSUES_URL, REPO_URL, WALLETS
 
 _BASE58 = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
@@ -99,38 +98,13 @@ def test_pages_link_to_the_repo_and_support(portal, registry):
     assert REPO_URL in api and "/about/#support" in api  # the sidebar links
 
 
-def test_the_support_flag_reaches_the_script(portal):
+def test_the_repo_url_reaches_the_script(portal):
     assert f'"repo": "{REPO_URL}"' in handle(Request("GET", "/"), portal).body.decode()
 
 
-def test_support_can_be_switched_off(registry, sample_root):
-    quiet = Portal(Config(root=sample_root, support=False), registry)
-    assert handle(Request("GET", "/about"), quiet).status == 404
-    for path in ("/", "/changes", f"/{registry.names()[0]}/"):
-        markup = handle(Request("GET", path), quiet).body.decode()
-        assert REPO_URL not in markup and "site-footer" not in markup and "/about/" not in markup, path
-        assert '"support": false' in markup
-
-
-def test_support_setting_and_flag(sample_root):
-    assert from_dict({"support": False}).support is False
-    assert Config().support is True
-
-    from apiwarden.cli import _config
-
-    class Args:
-        no_support = True
-
-    assert _config(sample_root, Args()).support is False
-
-
-def test_static_build_includes_the_about_page_unless_off(config, tmp_path):
-    build_static(config, tmp_path / "on")
-    assert (tmp_path / "on" / "about" / "index.html").exists()
-
-    quiet = Config(root=config.root, support=False)
-    build_static(quiet, tmp_path / "off")
-    assert not (tmp_path / "off" / "about").exists()
+def test_static_build_includes_the_about_page(config, tmp_path):
+    build_static(config, tmp_path / "dist")
+    assert (tmp_path / "dist" / "about" / "index.html").exists()
 
 
 def test_every_coin_has_a_colour_and_a_logo_mark():
