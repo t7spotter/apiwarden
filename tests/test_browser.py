@@ -490,3 +490,65 @@ def test_theme_toggle_cycles_remembers_and_reaches_the_renderer(page, live):
     page.click("#theme-toggle")  # back to Auto
     assert theme() is None
     assert page.evaluate("document.getElementById('docs').getAttribute('theme')") == "light"  # this browser's system is light
+
+
+def test_command_palette_searches_runs_actions_and_copies_curl(page, live):
+    base, _, portal = live
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"], origin=base)
+    app = _first_app(portal)
+    page.goto(f"{base}/{app}/", wait_until="load")
+    page.wait_for_timeout(2500)
+
+    assert page.is_hidden(".palette")  # built on first use
+    page.keyboard.press("Control+k")
+    page.wait_for_selector(".palette:not([hidden])")
+    assert page.locator(".palette-item").count() > 3  # the APIs and the actions, before typing
+
+    # Operations across every API, ranked like the sidebar search.
+    page.keyboard.type("task")
+    page.wait_for_timeout(600)
+    texts = page.locator(".palette-item").all_inner_texts()
+    assert any("GET" in t and "/tasks/" in t for t in texts), texts
+
+    # Ctrl+Enter copies the curl command and leaves the palette to say so.
+    page.keyboard.press("Control+Enter")
+    page.wait_for_timeout(900)
+    assert page.evaluate("navigator.clipboard.readText()").startswith("curl ")
+
+    # ">" shows actions only; Enter runs one — and closes first, handing focus back.
+    page.keyboard.press("/")
+    page.wait_for_selector(".palette:not([hidden])")
+    page.keyboard.type(">dark")
+    page.wait_for_timeout(500)
+    assert page.locator(".palette-item").all_inner_texts() == ["Use the dark theme"]
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(300)
+    assert page.is_hidden(".palette")
+    assert page.evaluate("document.documentElement.getAttribute('data-theme')") == "dark"
+
+    # An action that moves focus is not undone by the palette closing.
+    page.keyboard.press("Control+k")
+    page.keyboard.type(">bearer")
+    page.wait_for_timeout(500)
+    page.keyboard.press("Enter")
+    page.wait_for_timeout(300)
+    assert page.evaluate("document.activeElement && document.activeElement.id") == "auth-token"
+
+    # Escape closes; typing "/" in a field does not open it.
+    page.keyboard.press("Control+k")
+    page.keyboard.press("Escape")
+    assert page.is_hidden(".palette")
+    page.keyboard.type("a/b")
+    assert page.is_hidden(".palette")
+    page.evaluate("localStorage.clear()")
+
+
+def test_command_palette_jumps_to_another_api(page, live):
+    base, _, portal = live
+    names = portal.registry.names()
+    page.goto(f"{base}/changes", wait_until="load")  # a page with no RapiDoc at all
+    page.keyboard.press("Control+k")
+    page.keyboard.type(names[-1])
+    page.wait_for_timeout(600)
+    page.locator(".palette-item").first.click()
+    page.wait_for_url(f"**/{names[-1]}/**")

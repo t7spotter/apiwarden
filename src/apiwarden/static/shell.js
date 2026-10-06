@@ -60,42 +60,65 @@
   var input = document.getElementById("search-input");
   var results = document.getElementById("search-results");
 
-  if (input && results) {
-    var operations = null;
+  var operations = null;
 
-    function loadIndex() {
-      if (operations) return Promise.resolve(operations);
-      return fetch(url("index.json"))
-        .then(function (response) {
-          return response.json();
-        })
-        .then(function (payload) {
-          operations = payload.operations || [];
-          return operations;
-        })
-        .catch(function () {
-          operations = [];
-          return operations;
-        });
-    }
-
-    function score(operation, terms) {
-      var fields = [
-        [operation.id.toLowerCase(), 6],
-        [operation.path.toLowerCase(), 5],
-        [(operation.summary || "").toLowerCase(), 4],
-        [(operation.tags || []).join(" ").toLowerCase(), 3],
-        [operation.app.toLowerCase(), 2],
-      ];
-      var total = 0;
-      fields.forEach(function (field) {
-        terms.forEach(function (term) {
-          if (field[0].indexOf(term) !== -1) total += field[1];
-        });
+  function loadIndex() {
+    if (operations) return Promise.resolve(operations);
+    return fetch(url("index.json"))
+      .then(function (response) {
+        return response.json();
+      })
+      .then(function (payload) {
+        operations = payload.operations || [];
+        return operations;
+      })
+      .catch(function () {
+        operations = [];
+        return operations;
       });
-      return total;
-    }
+  }
 
+  function score(operation, terms) {
+    var fields = [
+      [operation.id.toLowerCase(), 6],
+      [operation.path.toLowerCase(), 5],
+      [(operation.summary || "").toLowerCase(), 4],
+      [(operation.tags || []).join(" ").toLowerCase(), 3],
+      [operation.app.toLowerCase(), 2],
+    ];
+    var total = 0;
+    fields.forEach(function (field) {
+      terms.forEach(function (term) {
+        if (field[0].indexOf(term) !== -1) total += field[1];
+      });
+    });
+    return total;
+  }
+
+  // The best matches for a free-text query, best first. Shared by the sidebar
+  // search and the command palette.
+  function rankOperations(query, limit) {
+    var terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (!terms.length) return Promise.resolve([]);
+    return loadIndex().then(function (all) {
+      return all
+        .map(function (operation) {
+          return { operation: operation, score: score(operation, terms) };
+        })
+        .filter(function (row) {
+          return row.score > 0;
+        })
+        .sort(function (x, y) {
+          return y.score - x.score;
+        })
+        .slice(0, limit)
+        .map(function (row) {
+          return row.operation;
+        });
+    });
+  }
+
+  if (input && results) {
     function render(matches) {
       results.innerHTML = "";
       if (!matches.length) {
@@ -132,30 +155,12 @@
     input.addEventListener("input", function () {
       clearTimeout(timer);
       timer = setTimeout(function () {
-        var query = input.value.trim().toLowerCase();
+        var query = input.value.trim();
         if (!query) {
           results.innerHTML = "";
           return;
         }
-        var terms = query.split(/\s+/);
-        loadIndex().then(function (all) {
-          render(
-            all
-              .map(function (operation) {
-                return { operation: operation, score: score(operation, terms) };
-              })
-              .filter(function (row) {
-                return row.score > 0;
-              })
-              .sort(function (a, b) {
-                return b.score - a.score;
-              })
-              .slice(0, 12)
-              .map(function (row) {
-                return row.operation;
-              })
-          );
-        });
+        rankOperations(query, 12).then(render);
       }, 90);
     });
 
@@ -223,17 +228,20 @@
     }
   }
 
-  if (themeButton) {
-    themeButton.addEventListener("click", function () {
-      var next = THEME_ORDER[(THEME_ORDER.indexOf(themeChoice()) + 1) % THEME_ORDER.length];
-      try {
-        localStorage.setItem(THEME_KEY, next);
-      } catch (e) {
-        // Applies for this page load; just won't carry over.
-      }
-      applyTheme();
-    });
+  function setTheme(choice) {
+    try {
+      localStorage.setItem(THEME_KEY, choice);
+    } catch (e) {
+      // Applies for this page load; just won't carry over.
+    }
+    applyTheme();
   }
+
+  function cycleTheme() {
+    setTheme(THEME_ORDER[(THEME_ORDER.indexOf(themeChoice()) + 1) % THEME_ORDER.length]);
+  }
+
+  if (themeButton) themeButton.addEventListener("click", cycleTheme);
   applyTheme();
   if (systemDark && systemDark.addEventListener) systemDark.addEventListener("change", applyTheme);
 
@@ -462,13 +470,19 @@
       });
   }
 
-  var seenButton = document.getElementById("news-seen");
-  if (seenButton) {
-    seenButton.addEventListener("click", function () {
-      writeSeen(Math.max(readSeen() || 0, newestAt));
-      clearNews();
+  function markAllSeen() {
+    writeSeen(Math.max(readSeen() || 0, newestAt));
+    clearNews();
+  }
+
+  function hasUnseen() {
+    return Array.prototype.some.call(document.querySelectorAll(".news-count"), function (badge) {
+      return !badge.hidden;
     });
   }
+
+  var seenButton = document.getElementById("news-seen");
+  if (seenButton) seenButton.addEventListener("click", markAllSeen);
 
   loadNews();
 
@@ -482,6 +496,329 @@
       field.focus();
     });
   });
+
+  /* ---------- command palette: Ctrl/Cmd+K, or "/" ----------
+
+     One box for everything: operations across every API (the same ranking as
+     the sidebar search), the APIs themselves, and actions — theme, the token,
+     the changes log, raw files. A leading ">" shows actions only. Enter opens
+     the selected row; Ctrl/Cmd+Enter on an operation copies its curl command.
+     Built on first use, so a page that never opens it pays nothing. */
+
+  var isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "");
+  var paletteEl = null;
+  var paletteInput = null;
+  var paletteList = null;
+  var paletteStatus = null;
+  var paletteItems = [];
+  var paletteIndex = 0;
+  var paletteSeq = 0;
+  var paletteReturnTo = null;
+  var paletteTimer = null;
+
+  function paletteIsOpen() {
+    return !!paletteEl && !paletteEl.hidden;
+  }
+
+  function isTyping(event) {
+    // RapiDoc's own inputs live in a shadow root, where event.target is the host.
+    var node = (event.composedPath && event.composedPath()[0]) || event.target;
+    if (!node || !node.tagName) return false;
+    return node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName);
+  }
+
+  function apisForPalette() {
+    return Array.prototype.map.call(document.querySelectorAll("#api-switch option[data-app]"), function (option) {
+      return { app: option.dataset.app, title: option.dataset.label || option.textContent, href: option.value };
+    });
+  }
+
+  function openFile(path) {
+    window.open(url(path), "_blank", "noopener");
+  }
+
+  function focusControl(id) {
+    var control = document.getElementById(id);
+    if (control) control.focus();
+  }
+
+  function paletteActions() {
+    var list = [
+      { label: "Go to the home page", keywords: "landing apis", run: function () { location.href = url("/"); } },
+      { label: "Open the changes log", keywords: "changelog history what changed", run: function () { location.href = url("changes"); } },
+    ];
+    if (hasUnseen()) {
+      list.push({ label: "Mark all changes as seen", keywords: "clear new badge markers", run: markAllSeen });
+    }
+    list.push(
+      { label: "Use the light theme", keywords: "theme colour appearance", run: function () { setTheme("light"); } },
+      { label: "Use the dark theme", keywords: "theme colour appearance", run: function () { setTheme("dark"); } },
+      { label: "Follow the system theme", keywords: "theme colour appearance auto", run: function () { setTheme("auto"); } }
+    );
+    if (document.getElementById("auth-token")) {
+      list.push(
+        { label: "Set the bearer token", keywords: "auth authorization login", run: function () { focusControl("auth-token"); } },
+        { label: "Clear the bearer token", keywords: "auth logout remove", run: function () { var b = document.getElementById("auth-token-clear"); if (b) b.click(); } }
+      );
+    }
+    if (document.getElementById("server-input")) {
+      list.push({ label: "Add a server for Try it", keywords: "localhost base url host environment", run: function () { focusControl("server-input"); } });
+    }
+    if (config.app) {
+      list.push(
+        { label: "Open this API's TypeScript types", keywords: "types ts", run: function () { openFile("types/" + encodeURIComponent(config.app) + ".ts"); } },
+        { label: "Open this API's raw spec", keywords: "openapi json yaml", run: function () { openFile("openapi/" + encodeURIComponent(config.app) + ".json"); } }
+      );
+    }
+    list.push(
+      { label: "Open index.json", keywords: "agents machine", run: function () { openFile("index.json"); } },
+      { label: "Open llms.txt", keywords: "agents machine", run: function () { openFile("llms.txt"); } }
+    );
+    return list;
+  }
+
+  function matchesAll(text, terms) {
+    text = text.toLowerCase();
+    return terms.every(function (term) {
+      return text.indexOf(term) !== -1;
+    });
+  }
+
+  function openOperation(operation) {
+    closePalette();
+    if (docs && operation.app === config.app) {
+      goToOperation(operation.method, operation.path);
+    } else {
+      location.href =
+        url(encodeURIComponent(operation.app) + "/") + "?op=" + encodeURIComponent(operation.method + " " + operation.path);
+    }
+  }
+
+  function copyOperationCurl(operation) {
+    var server = docs && operation.app === config.app && docs.selectedServer ? docs.selectedServer.computedUrl || docs.selectedServer.url : "";
+    fetchCurl(operation.id, server, false)
+      .then(copyText)
+      .then(
+        function () {
+          paletteStatus.textContent = "Copied the curl command for " + operation.id + " ✓";
+          setTimeout(closePalette, 800);
+        },
+        function () {
+          paletteStatus.textContent = "Could not copy — the browser blocked clipboard access.";
+        }
+      );
+  }
+
+  // The rows for a query, grouped: operations, APIs, actions.
+  function paletteGroups(raw) {
+    var commandsOnly = raw.charAt(0) === ">";
+    var query = (commandsOnly ? raw.slice(1) : raw).trim();
+    var terms = query.toLowerCase().split(/\s+/).filter(Boolean);
+
+    var actions = paletteActions()
+      .filter(function (action) {
+        return !terms.length || matchesAll(action.label + " " + (action.keywords || ""), terms);
+      })
+      .map(function (action) {
+        return { label: action.label, run: action.run };
+      });
+
+    var apis = commandsOnly
+      ? []
+      : apisForPalette()
+          .filter(function (api) {
+            return !terms.length || matchesAll(api.title + " " + api.app, terms);
+          })
+          .map(function (api) {
+            return { label: api.title, detail: "API", run: function () { location.href = api.href; } };
+          });
+
+    var ranked = commandsOnly || !terms.length ? Promise.resolve([]) : rankOperations(query, 8);
+    return ranked.then(function (found) {
+      var ops = found.map(function (operation) {
+        return {
+          badge: operation.method,
+          label: operation.summary || operation.id,
+          detail: operation.path + " · " + operation.app,
+          run: function () { openOperation(operation); },
+          alt: function () { copyOperationCurl(operation); },
+        };
+      });
+      return [
+        { name: "Operations", items: ops },
+        { name: "APIs", items: apis },
+        { name: "Actions", items: actions },
+      ].filter(function (group) {
+        return group.items.length;
+      });
+    });
+  }
+
+  function renderPalette(groups, raw) {
+    paletteList.innerHTML = "";
+    paletteItems = [];
+    groups.forEach(function (group) {
+      var heading = document.createElement("li");
+      heading.className = "palette-group";
+      heading.setAttribute("role", "presentation");
+      heading.textContent = group.name;
+      paletteList.appendChild(heading);
+
+      group.items.forEach(function (item) {
+        var row = document.createElement("li");
+        row.className = "palette-item";
+        row.id = "palette-option-" + paletteItems.length;
+        row.setAttribute("role", "option");
+        if (item.badge) {
+          var badge = document.createElement("span");
+          badge.className = "palette-badge method-" + item.badge.toLowerCase();
+          badge.textContent = item.badge;
+          row.appendChild(badge);
+        }
+        var label = document.createElement("span");
+        label.className = "palette-label";
+        label.textContent = item.label;
+        row.appendChild(label);
+        if (item.detail) {
+          var detail = document.createElement("span");
+          detail.className = "palette-detail";
+          detail.textContent = item.detail;
+          row.appendChild(detail);
+        }
+        var at = paletteItems.length;
+        row.addEventListener("mousemove", function () {
+          if (paletteIndex !== at) selectPaletteItem(at);
+        });
+        row.addEventListener("click", function () {
+          // Close first: closing hands focus back, and an action such as "Set
+          // the bearer token" then moves it where it wants it.
+          closePalette();
+          item.run();
+        });
+        item.row = row;
+        paletteItems.push(item);
+        paletteList.appendChild(row);
+      });
+    });
+
+    if (!paletteItems.length) {
+      var empty = document.createElement("li");
+      empty.className = "palette-empty";
+      empty.setAttribute("role", "presentation");
+      empty.textContent = 'Nothing matches "' + raw.trim() + '". Try an operation name or a path, or start with > for actions.';
+      paletteList.appendChild(empty);
+    }
+    selectPaletteItem(0);
+  }
+
+  function selectPaletteItem(index) {
+    if (!paletteItems.length) {
+      paletteInput.removeAttribute("aria-activedescendant");
+      return;
+    }
+    paletteIndex = (index + paletteItems.length) % paletteItems.length;
+    paletteItems.forEach(function (item, i) {
+      item.row.setAttribute("aria-selected", i === paletteIndex ? "true" : "false");
+    });
+    var row = paletteItems[paletteIndex].row;
+    paletteInput.setAttribute("aria-activedescendant", row.id);
+    row.scrollIntoView({ block: "nearest" });
+  }
+
+  function refreshPalette() {
+    var seq = ++paletteSeq;
+    var raw = paletteInput.value;
+    paletteGroups(raw).then(function (groups) {
+      if (seq === paletteSeq && paletteIsOpen()) renderPalette(groups, raw); // a newer keystroke wins
+    });
+  }
+
+  function buildPalette() {
+    paletteEl = document.createElement("div");
+    paletteEl.className = "palette";
+    paletteEl.hidden = true;
+    var mod = isMac ? "⌘" : "Ctrl";
+    paletteEl.innerHTML =
+      '<div class="palette-box" role="dialog" aria-modal="true" aria-label="Command palette">' +
+      '<input class="palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="palette-list" ' +
+      'aria-autocomplete="list" autocomplete="off" spellcheck="false" ' +
+      'placeholder="Search operations, APIs and actions…  (> for actions only)">' +
+      '<ul class="palette-list" id="palette-list" role="listbox"></ul>' +
+      '<div class="palette-foot"><span class="palette-status" aria-live="polite"></span>' +
+      "<span>↑↓ move · Enter open · " + mod + "+Enter copy curl · Esc close</span></div></div>";
+    document.body.appendChild(paletteEl);
+
+    paletteInput = paletteEl.querySelector(".palette-input");
+    paletteList = paletteEl.querySelector(".palette-list");
+    paletteStatus = paletteEl.querySelector(".palette-status");
+
+    paletteEl.addEventListener("mousedown", function (event) {
+      if (event.target === paletteEl) closePalette(); // the dimmed area outside the box
+    });
+
+    paletteInput.addEventListener("input", function () {
+      paletteStatus.textContent = "";
+      clearTimeout(paletteTimer);
+      paletteTimer = setTimeout(refreshPalette, 90);
+    });
+
+    paletteInput.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowDown") selectPaletteItem(paletteIndex + 1);
+      else if (event.key === "ArrowUp") selectPaletteItem(paletteIndex - 1);
+      else if (event.key === "Escape") closePalette();
+      else if (event.key === "Tab") { /* the box is the whole dialog: keep focus in it */ }
+      else if (event.key === "Enter") {
+        var item = paletteItems[paletteIndex];
+        if (!item) return;
+        if ((event.ctrlKey || event.metaKey) && item.alt) item.alt();
+        else {
+          closePalette();
+          item.run();
+        }
+      } else return;
+      event.preventDefault();
+    });
+  }
+
+  function openPalette() {
+    if (!paletteEl) buildPalette();
+    paletteReturnTo = document.activeElement;
+    paletteEl.hidden = false;
+    paletteInput.value = "";
+    paletteStatus.textContent = "";
+    refreshPalette();
+    paletteInput.focus();
+  }
+
+  function closePalette() {
+    if (!paletteIsOpen()) return;
+    paletteEl.hidden = true;
+    paletteSeq++; // drop any search still in flight
+    var back = paletteReturnTo;
+    paletteReturnTo = null;
+    if (back && back.focus && document.contains(back)) back.focus();
+  }
+
+  document.addEventListener(
+    "keydown",
+    function (event) {
+      var plain = !event.ctrlKey && !event.metaKey && !event.altKey;
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && event.key && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        if (paletteIsOpen()) closePalette();
+        else openPalette();
+      } else if (event.key === "/" && plain && !paletteIsOpen() && !isTyping(event)) {
+        event.preventDefault();
+        openPalette();
+      }
+    },
+    true // capture: RapiDoc must not get to swallow the shortcut first
+  );
+
+  if (input) {
+    input.placeholder = "Search all APIs…  (" + (isMac ? "⌘K" : "Ctrl K") + ")";
+    input.setAttribute("aria-keyshortcuts", isMac ? "Meta+K" : "Control+K");
+  }
 
   /* ---------- global bearer token, applied to every API's Try it panel ----------
 
@@ -880,10 +1217,10 @@
     return value.replace(/[\\"$`]/g, "\\$&");
   }
 
-  function buildCurl(operation, withToken) {
-    var server = docs.selectedServer && (docs.selectedServer.computedUrl || docs.selectedServer.url);
-    var id = operation.operationId || operation.method.toUpperCase() + " " + operation.path;
-    var endpoint = url("curl/" + encodeURIComponent(id) + ".txt") + (server ? "?server=" + encodeURIComponent(server) : "");
+  // The command for one operation, as text. `server` may be empty: the server
+  // then falls back to the spec's own first server.
+  function fetchCurl(operationId, server, withToken) {
+    var endpoint = url("curl/" + encodeURIComponent(operationId) + ".txt") + (server ? "?server=" + encodeURIComponent(server) : "");
     return fetch(endpoint, { credentials: "same-origin" })
       .then(function (response) {
         if (!response.ok) throw new Error(String(response.status));
@@ -893,6 +1230,12 @@
         var token = withToken ? readToken() : "";
         return token ? command.split("$TOKEN").join(shellEscapeInDoubleQuotes(token)) : command;
       });
+  }
+
+  function buildCurl(operation, withToken) {
+    var server = docs.selectedServer && (docs.selectedServer.computedUrl || docs.selectedServer.url);
+    var id = operation.operationId || operation.method.toUpperCase() + " " + operation.path;
+    return fetchCurl(id, server, withToken);
   }
 
   function flashButton(button, label) {
