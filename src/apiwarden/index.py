@@ -16,6 +16,14 @@ from .loader import Registry, Spec, ref_name, resolve_deep, resolve_ref
 _WORD = re.compile(r"[a-z0-9]+")
 
 
+def parse_limit(value: Any, default: int = 20) -> int:
+    """A result count from user input; anything unusable falls back to the default."""
+    try:
+        return max(1, int(value))
+    except (TypeError, ValueError):
+        return default
+
+
 def operation_auth(spec: Spec, operation: dict[str, Any]) -> str:
     """How the operation authenticates: a scheme name, or "public"."""
     security = operation.get("security", spec.data.get("security"))

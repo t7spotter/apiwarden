@@ -21,7 +21,7 @@ from .config import Config
 from .curl import build_curl
 from .http import Request, Response, html, json_response, not_found, text
 from .typescript import typescript_for
-from .index import conventions, operation_detail, schema_detail, search_operations
+from .index import conventions, operation_detail, parse_limit, schema_detail, search_operations
 from .loader import Registry, reload_if_changed
 from .watcher import Watcher
 
@@ -104,7 +104,7 @@ def handle(request: Request, portal: Portal) -> Response:
             query,
             app=request.query.get("app"),
             method=request.query.get("method"),
-            limit=int(request.query.get("limit") or 20),
+            limit=parse_limit(request.query.get("limit")),
         )
         return json_response({"query": query, "count": len(results), "results": results})
 
