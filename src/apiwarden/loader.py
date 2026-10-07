@@ -10,6 +10,11 @@ from typing import Any
 
 import yaml
 
+# libyaml's parser is several times faster than the pure-Python one, and a spec
+# is re-parsed at startup and on every edit. It is a build option of PyYAML, so
+# fall back quietly when the wheel does not carry it.
+_YamlLoader = getattr(yaml, "CSafeLoader", yaml.SafeLoader)
+
 SPEC_FILENAMES = ("openapi.yaml", "openapi.yml", "openapi.json")
 HTTP_METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 
@@ -100,7 +105,7 @@ def discover_specs(root: Path, sources: dict[str, str] | None = None) -> list[tu
 
 def _read_redocly(registry_file: Path, root: Path) -> list[tuple[str, Path]]:
     try:
-        data = yaml.safe_load(registry_file.read_text(encoding="utf-8")) or {}
+        data = yaml.load(registry_file.read_text(encoding="utf-8"), Loader=_YamlLoader) or {}
     except (OSError, yaml.YAMLError):
         return []
 
@@ -160,7 +165,7 @@ def parse_spec(name: str, path: Path, raw: bytes, mtime: float = 0.0) -> Spec:
 
     try:
         text = raw.decode("utf-8")
-        data = json.loads(text) if path.suffix == ".json" else yaml.safe_load(text)
+        data = json.loads(text) if path.suffix == ".json" else yaml.load(text, Loader=_YamlLoader)
     except (UnicodeDecodeError, ValueError, yaml.YAMLError) as exc:
         return Spec(name, path, {}, digest, mtime, error=f"{path.name}: {exc}")
 
