@@ -216,6 +216,11 @@ the page). `--fail-on-breaking` exits non-zero, so CI can gate on it:
 $ apiwarden changes ./api-docs --since v1.4.0 --fail-on-breaking
 ```
 
+Comparing against a revision needs `git` on the machine running apiwarden and the
+specs inside a repository. In a slim container that has neither, the page says so
+and offers only snapshot files: write one with `apiwarden snapshot` where git is
+available, put it where the server can read it, and give its path as the baseline.
+
 The same history is in `/changes.json` and the `list_changes` MCP tool, so an
 agent can answer "will this break my client?" directly.
 
