@@ -13,6 +13,7 @@ as easily as against yesterday.
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -326,18 +327,43 @@ def _git(root: Path, *args: str) -> str:
     return _git_bytes(root, *args).decode("utf-8", "replace").strip()
 
 
+_NO_GIT = (
+    "git is not installed on the machine running apiwarden (or is not on its PATH), so a git "
+    "revision cannot be compared. Install git there, or compare against a snapshot file instead: "
+    "write one with `apiwarden snapshot` where git is available and give its path."
+)
+_NOT_A_REPO = (
+    "the specs are not inside a git repository, so a git revision cannot be compared. "
+    "Compare against a snapshot file instead: write one with `apiwarden snapshot` and give its path."
+)
+
+
 def _git_bytes(root: Path, *args: str) -> bytes:
     try:
         completed = subprocess.run(
             ["git", "-C", str(root), *args], capture_output=True, timeout=15, check=False
         )
+    except FileNotFoundError as exc:  # no git binary on PATH: common in a slim container
+        raise DiffUnavailable(_NO_GIT) from exc
     except (OSError, subprocess.SubprocessError) as exc:
         raise DiffUnavailable(f"git is not usable here: {exc}") from exc
 
     if completed.returncode != 0:
         message = completed.stderr.decode("utf-8", "replace").strip()
+        if "not a git repository" in message:
+            raise DiffUnavailable(_NOT_A_REPO)
         raise DiffUnavailable(message or f"git {' '.join(args)} failed")
     return completed.stdout
+
+
+def git_usable(root: Path) -> bool:
+    """Whether a git revision can be compared here: git is installed and the specs are in a repo."""
+    if shutil.which("git") is None:
+        return False
+    try:
+        return _git(root, "rev-parse", "--is-inside-work-tree") == "true"
+    except DiffUnavailable:
+        return False
 
 
 def summarize(changes: list[Change]) -> dict[str, int]:

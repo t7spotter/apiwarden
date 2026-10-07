@@ -14,7 +14,7 @@ import json
 from typing import Any
 from urllib.parse import quote
 
-from . import md
+from . import diff, md
 from .config import Config
 from .index import api_summaries, build_index
 from .loader import Registry, Spec
@@ -632,7 +632,7 @@ def changelog_page(
         head = f"""
   <h1>Changes</h1>
   <p>Every change to the API contract, newest first, recorded automatically whenever a spec changes. {tracking}</p>"""
-        tail = _since_form("", open_=False)
+        tail = _since_form("", open_=False, git_ok=diff.git_usable(registry.root))
 
     main = f"""
 <div class="page-head">{head}
@@ -686,36 +686,52 @@ def _pills(counts: dict[str, int]) -> str:
 
 # Shown under the Baseline field. Each is something `git show <rev>:<file>` or a
 # snapshot file accepts, which is exactly what snapshot_at() resolves.
-_SINCE_EXAMPLES = (
+_GIT_EXAMPLES = (
     ("v1.4.0", "a release tag"),
     ("HEAD~5", "five commits ago"),
     ("main", "a branch, as it is now"),
     ("3f9c2ab", "a commit, short or full"),
-    ("baseline.json", "a file saved with apiwarden snapshot"),
 )
+_SNAPSHOT_EXAMPLE = ("baseline.json", "a file saved with apiwarden snapshot")
 
 
-def _since_form(since: str, open_: bool) -> str:
+def _since_form(since: str, open_: bool, git_ok: bool = True) -> str:
+    # Without a usable git, a revision cannot work, so do not offer one.
+    examples = (*_GIT_EXAMPLES, _SNAPSHOT_EXAMPLE) if git_ok else (_SNAPSHOT_EXAMPLE,)
     chips = "".join(
         f'<li><button type="button" class="since-example" data-example="{_e(value)}">'
         f"<code>{_e(value)}</code></button> <span>{_e(note)}</span></li>"
-        for value, note in _SINCE_EXAMPLES
+        for value, note in examples
     )
+    if git_ok:
+        placeholder = "e.g. v1.4.0 or HEAD~5"
+        intro = (
+            "Name the version you built against and see what has moved since. Anything "
+            "git can show works \u2014 click an example to fill it in:"
+        )
+        terminal = "v1.4.0"
+    else:
+        placeholder = "path to a snapshot, e.g. baseline.json"
+        intro = (
+            "git is not available here, so only a snapshot file can be compared. Write one where git "
+            "is available with <code>apiwarden snapshot ./api-docs -o baseline.json</code>, put it where "
+            "this server can read it, and give its path:"
+        )
+        terminal = "baseline.json"
     return f"""
 <details class="since-details"{" open" if open_ else ""}>
   <summary>Compare against a specific version</summary>
   <form class="since-form" method="get">
     <label for="since">Baseline</label>
-    <input id="since" name="since" value="{_e(since)}" placeholder="e.g. v1.4.0 or HEAD~5"
+    <input id="since" name="since" value="{_e(since)}" placeholder="{_e(placeholder)}"
            autocomplete="off" spellcheck="false">
     <button type="submit">Compare</button>
   </form>
   <div class="since-help">
-    <p>Name the version you built against and see what has moved since. Anything
-       git can show works — click an example to fill it in:</p>
+    <p>{intro}</p>
     <ul>{chips}</ul>
     <p>The same thing from a terminal, e.g. to fail CI on a breaking change:
-       <code>apiwarden changes ./api-docs --since v1.4.0 --fail-on-breaking</code></p>
+       <code>apiwarden changes ./api-docs --since {_e(terminal)} --fail-on-breaking</code></p>
   </div>
 </details>
 """
@@ -739,7 +755,7 @@ def changes_page(config: Config, registry: Registry, since: str, changes, error:
      <a href="{_e(config.url("changes"))}">Back to the full history</a></p>
   <div class="meta-row">{_pills(summarize(changes))}</div>
 </div>
-{_since_form(since, open_=True)}
+{_since_form(since, open_=True, git_ok=diff.git_usable(registry.root))}
 {body}
 """
     return page(config, registry, f"Changes · {config.title}", main, active="__changes__")
