@@ -14,15 +14,13 @@ import time
 from pathlib import Path
 from typing import Any, Iterator
 
-import yaml
-
 from . import agent, diff, history, mcp_http, render
 from .config import Config
 from .curl import build_curl
 from .http import Request, Response, html, json_response, not_found, text
 from .typescript import typescript_for
 from .index import conventions, operation_detail, parse_limit, schema_detail, search_operations
-from .loader import Registry, reload_if_changed
+from .loader import Registry, reload_if_changed, spec_text
 from .watcher import Watcher
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -245,14 +243,14 @@ def _spec_file(registry: Registry, filename: str) -> Response:
         return not_found(f"no API {name!r}")
 
     if extension == "yaml":
-        body = yaml.safe_dump(spec.data, allow_unicode=True, sort_keys=False)
+        body = spec_text(spec, "yaml")
         return Response(
             status=200,
             headers={"Content-Type": "application/yaml; charset=utf-8", "ETag": f'"{spec.sha256}"'},
             body=body.encode("utf-8"),
         )
     if extension == "json":
-        body = json.dumps(spec.data, ensure_ascii=False, indent=2)
+        body = spec_text(spec, "json")
         return Response(
             status=200,
             headers={

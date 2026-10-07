@@ -18,7 +18,7 @@ from typing import Any
 from . import agent as agent_payloads
 from .config import Config
 from .index import api_summaries, conventions, operation_detail, schema_detail, search_operations
-from .loader import Registry
+from .loader import Registry, spec_text
 
 PROTOCOL_VERSIONS = ("2025-06-18", "2025-03-26", "2024-11-05")
 SERVER_NAME = "apiwarden"
@@ -270,11 +270,9 @@ def call_tool(name: str, arguments: dict[str, Any], registry: Registry, config: 
         if spec is None or spec.error:
             return _tool_error(f"No API named {app!r}. Known: {', '.join(registry.names())}.")
         if str(arguments.get("format", "json")).lower() == "yaml":
-            import yaml
-
-            text = yaml.safe_dump(spec.data, allow_unicode=True, sort_keys=False)
+            text = spec_text(spec, "yaml")
         else:
-            text = json.dumps(spec.data, ensure_ascii=False, indent=2)
+            text = spec_text(spec, "json")
         text, truncated = agent_payloads.truncate_spec(text)
         if truncated:
             text = "NOTE: truncated; use get_operation for specific endpoints.\n\n" + text

@@ -30,6 +30,8 @@ class Spec:
     mtime: float
     # Parse error, if the file could not be read. data is {} when set.
     error: str | None = None
+    # The file exactly as it was read, so it can be served back unchanged.
+    raw: bytes = b""
 
     @property
     def title(self) -> str:
@@ -172,7 +174,21 @@ def parse_spec(name: str, path: Path, raw: bytes, mtime: float = 0.0) -> Spec:
     if not isinstance(data, dict):
         return Spec(name, path, {}, digest, mtime, error=f"{path.name}: not a mapping")
 
-    return Spec(name, path, data, digest, mtime)
+    return Spec(name, path, data, digest, mtime, raw=raw)
+
+
+def spec_text(spec: Spec, fmt: str) -> str:
+    """The spec as "json" or "yaml" text.
+
+    A file already in the requested format is returned as written, comments and
+    key order included; only a conversion is regenerated from the parsed data.
+    """
+    source = "json" if spec.path.suffix == ".json" else "yaml"
+    if fmt == source and spec.raw:
+        return spec.raw.decode("utf-8")
+    if fmt == "json":
+        return json.dumps(spec.data, ensure_ascii=False, indent=2)
+    return yaml.safe_dump(spec.data, allow_unicode=True, sort_keys=False)
 
 
 def load_registry(root: Path, sources: dict[str, str] | None = None) -> Registry:

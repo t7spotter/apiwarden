@@ -12,12 +12,10 @@ import json
 import shutil
 from pathlib import Path
 
-import yaml
-
 from . import agent, render
 from .config import Config
 from .index import build_index, conventions, operation_detail, schema_detail
-from .loader import Registry, load_registry
+from .loader import Registry, load_registry, spec_text
 from .router import STATIC_DIR
 from .typescript import typescript_for
 
@@ -48,11 +46,8 @@ def build_static(config: Config, output: Path) -> int:
         if spec.error:
             continue
         written += _write(output / "display" / f"{name}.json", _json(render.display_spec(config, spec)))
-        written += _write(output / "openapi" / f"{name}.json", _json(spec.data))
-        written += _write(
-            output / "openapi" / f"{name}.yaml",
-            yaml.safe_dump(spec.data, allow_unicode=True, sort_keys=False),
-        )
+        written += _write(output / "openapi" / f"{name}.json", spec_text(spec, "json"))
+        written += _write(output / "openapi" / f"{name}.yaml", spec_text(spec, "yaml"))
         written += _write(output / "conventions" / f"{name}.json", _json(conventions(registry, name)))
         written += _write(output / "types" / f"{name}.ts", typescript_for(spec))
 
