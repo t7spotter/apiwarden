@@ -340,3 +340,75 @@ def test_a_properly_declared_new_required_field_is_breaking(registry):
 
     changes = diff.compare(before, after)
     assert any(c.kind == "field-added" and "required" in c.detail for c in changes if c.level == diff.BREAKING)
+
+
+# ---------------------------------------------------------------- git unavailable
+
+
+@pytest.fixture
+def no_git(monkeypatch):
+    """A machine with no git binary, as in a slim container."""
+    import subprocess
+
+    def missing(*args, **kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "git")
+
+    monkeypatch.setattr(subprocess, "run", missing)
+    monkeypatch.setattr("shutil.which", lambda name, *a, **k: None)
+
+
+def test_a_missing_git_binary_is_explained_in_plain_words(registry, no_git):
+    with pytest.raises(diff.DiffUnavailable) as caught:
+        diff.snapshot_at(registry, "HEAD~5")
+    message = str(caught.value)
+    assert "not installed" in message and "PATH" in message
+    assert "snapshot" in message  # and it says what to do instead
+    assert "Errno" not in message
+
+
+def test_specs_outside_a_repository_are_explained(tmp_path):
+    import shutil
+
+    if shutil.which("git") is None:
+        pytest.skip("needs git")
+    # A fresh directory outside any repository (tmp_path is not inside the project's).
+    assert diff.git_usable(tmp_path) is False
+
+
+def test_git_usable_is_false_without_git_and_true_in_a_repository(sample_root, no_git, monkeypatch):
+    assert diff.git_usable(sample_root) is False
+
+
+def test_git_usable_in_a_real_repository(tmp_path):
+    import shutil
+    import subprocess
+
+    if shutil.which("git") is None:
+        pytest.skip("needs git")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    assert diff.git_usable(tmp_path) is True
+
+
+def test_the_changes_page_explains_a_missing_git_and_stops_offering_git_examples(portal, no_git):
+    page = handle(Request("GET", "/changes", query={"since": "HEAD~5"}), portal).body.decode()
+    assert "not installed on the machine running apiwarden" in page
+    assert "Errno" not in page
+    # Only a snapshot file can work here, so that is all the form suggests.
+    assert 'data-example="baseline.json"' in page
+    for gone in ("HEAD~5\"", 'data-example="v1.4.0"', 'data-example="main"', 'data-example="3f9c2ab"'):
+        assert gone not in page.split("since-help", 1)[1], gone
+    assert "git is not available here" in page
+
+    api = handle(Request("GET", "/changes.json", query={"since": "HEAD~5"}), portal)
+    assert api.status == 400
+    assert "not installed" in json.loads(api.body)["error"]
+
+
+def test_the_full_history_form_offers_git_examples_only_when_git_works(portal, monkeypatch):
+    monkeypatch.setattr(diff, "git_usable", lambda root: True)
+    with_git = handle(Request("GET", "/changes"), portal).body.decode()
+    assert 'data-example="HEAD~5"' in with_git and "git is not available here" not in with_git
+
+    monkeypatch.setattr(diff, "git_usable", lambda root: False)
+    without = handle(Request("GET", "/changes"), portal).body.decode()
+    assert 'data-example="HEAD~5"' not in without and "git is not available here" in without

@@ -377,8 +377,11 @@ def test_since_examples_fill_the_baseline_field(page, live):
     base, _, _ = live
     page.goto(f"{base}/changes", wait_until="load")
     page.click(".since-details > summary")
-    page.click(".since-example[data-example='HEAD~5']")
-    assert page.input_value("#since") == "HEAD~5"
+    # The live fixture's specs are in a temp directory, not a git repository, so
+    # only the snapshot example is offered (the git ones are covered in test_diff).
+    assert page.locator(".since-example[data-example='HEAD~5']").count() == 0
+    page.click(".since-example[data-example='baseline.json']")
+    assert page.input_value("#since") == "baseline.json"
 
 
 def test_operation_tools_copy_a_link_and_a_curl_command(page, live):
