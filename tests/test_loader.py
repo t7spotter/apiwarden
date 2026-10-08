@@ -129,3 +129,14 @@ def test_registry_names_are_url_safe(tmp_path: Path):
 
     name = discover_specs(tmp_path)[0][0]
     assert "/" not in name and " " not in name
+
+
+def test_spec_text_returns_the_file_unchanged_in_its_own_format(tmp_path):
+    from apiwarden.loader import load_spec, spec_text
+
+    path = tmp_path / "openapi.yaml"
+    path.write_text("# header\nopenapi: 3.0.3\ninfo: {title: A, version: '1'}\npaths: {}\n")
+    spec = load_spec("a", path)
+
+    assert spec_text(spec, "yaml") == path.read_text()
+    assert spec_text(spec, "json").lstrip().startswith("{")

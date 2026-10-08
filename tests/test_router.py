@@ -107,6 +107,14 @@ def test_llms_endpoints_are_text(portal):
         assert response.body
 
 
+def test_llms_txt_names_every_mcp_tool(portal):
+    from apiwarden.mcp_http import TOOLS
+
+    text = get(portal, "/llms.txt").body.decode()
+    for tool in TOOLS:
+        assert tool["name"] in text
+
+
 def test_openapi_json_and_yaml(portal, registry):
     name = registry.names()[0]
     as_json = get(portal, f"/openapi/{name}.json")
@@ -117,6 +125,33 @@ def test_openapi_json_and_yaml(portal, registry):
     as_yaml = get(portal, f"/openapi/{name}.yaml")
     assert as_yaml.status == 200
     assert as_yaml.content_type.startswith("application/yaml")
+
+
+def test_a_spec_is_served_in_its_own_format_exactly_as_written(spec_copy):
+    from apiwarden.loader import load_registry
+
+    target = next(spec_copy.rglob("openapi.yaml"))
+    original = target.read_bytes()
+    target.write_bytes(b"# kept as written\n" + original)
+    registry = load_registry(spec_copy)
+    portal = Portal(Config(root=spec_copy), registry)
+    name = next(n for n, spec in registry.specs.items() if spec.path == target.resolve())
+
+    assert get(portal, f"/openapi/{name}.yaml").body == b"# kept as written\n" + original
+    # The other format is still a conversion of the parsed data.
+    assert body(get(portal, f"/openapi/{name}.json"))["openapi"]
+
+
+def test_a_json_spec_is_served_as_written_and_converted_to_yaml(tmp_path):
+    from apiwarden.loader import load_registry
+
+    raw = b'{"openapi":"3.0.3","info":{"title":"J","version":"1"},"paths":{}}'
+    (tmp_path / "thing").mkdir()
+    (tmp_path / "thing" / "openapi.json").write_bytes(raw)
+    portal = Portal(Config(root=tmp_path), load_registry(tmp_path))
+
+    assert get(portal, "/openapi/thing.json").body == raw
+    assert b"openapi: 3.0.3" in get(portal, "/openapi/thing.yaml").body
 
 
 def test_openapi_index_lists_download_urls(portal, registry):
@@ -135,6 +170,14 @@ def test_search_json(portal, registry):
     entry = build_index(registry)[0]
     payload = body(get(portal, "/search.json", q=entry["id"]))
     assert payload["results"][0]["id"] == entry["id"]
+
+
+def test_search_json_ignores_an_unusable_limit(portal, registry):
+    entry = build_index(registry)[0]
+    for limit in ("ten", "", "0", "-3"):
+        response = get(portal, "/search.json", q=entry["id"], limit=limit)
+        assert response.status == 200
+        assert body(response)["count"] >= 1
 
 
 def test_static_assets_are_served(portal):

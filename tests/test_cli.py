@@ -65,6 +65,16 @@ def test_build_writes_a_usable_static_copy(sample_root, tmp_path, capsys):
     assert '"watch": false' in (output / "index.html").read_text().lower()
 
 
+def test_build_keeps_a_yaml_spec_as_written(spec_copy, tmp_path):
+    target = next(spec_copy.rglob("openapi.yaml"))
+    target.write_bytes(b"# kept as written\n" + target.read_bytes())
+    output = tmp_path / "site"
+    assert main(["build", str(spec_copy), "-o", str(output)]) == 0
+
+    written = [p for p in (output / "openapi").glob("*.yaml") if p.read_bytes().startswith(b"# kept as written")]
+    assert len(written) == 1
+
+
 def test_build_replaces_a_previous_output(sample_root, tmp_path, capsys):
     output = tmp_path / "dist"
     main(["build", str(sample_root), "-o", str(output)])
